@@ -1,0 +1,4 @@
+-- See the workspace-level migration file:
+-- /Users/gabegilbert/Documents/Codex/2026-06-05/i-want-to-create-a-clean/supabase/migrations/001_clean_tacoma_verifier_schema.sql
+--
+-- This copy is intentionally not duplicated here to avoid schema drift.
