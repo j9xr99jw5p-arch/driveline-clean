@@ -14,7 +14,7 @@ type NullableNumber = number | null;
 type NullableBoolean = boolean | null;
 
 type BuildSubmission = {
-  contactEmail: string;
+  contactEmail: NullableString;
   ownerName: NullableString;
   socialHandle: NullableString;
   year: number;
@@ -104,7 +104,7 @@ export async function POST(request: Request) {
     const { error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || "Driveline <onboarding@resend.dev>",
       to: destinationEmail,
-      replyTo: submission.contactEmail,
+      replyTo: submission.contactEmail ?? undefined,
       subject,
       text: buildEmailText(submission, verifiedBuildData, attachments[0]?.filename ?? null),
       attachments
@@ -124,7 +124,7 @@ export async function POST(request: Request) {
 
 function parseSubmission(formData: FormData): BuildSubmission {
   return {
-    contactEmail: stringValue(formData, "contactEmail") ?? "",
+    contactEmail: stringValue(formData, "contactEmail"),
     ownerName: stringValue(formData, "ownerName"),
     socialHandle: stringValue(formData, "socialHandle"),
     year: Number(stringValue(formData, "year")),
@@ -156,14 +156,18 @@ function parseSubmission(formData: FormData): BuildSubmission {
 }
 
 function validateSubmission(submission: BuildSubmission) {
-  if (!isValidEmail(submission.contactEmail)) return "Please enter a valid contact email.";
+  if (submission.contactEmail && !isValidEmail(submission.contactEmail)) return "Please enter a valid contact email, or leave it blank.";
   if (!Number.isInteger(submission.year) || submission.year < 1995 || submission.year > 2035) return "Please enter a valid vehicle year.";
   if (!submission.make) return "Please enter the vehicle make.";
   if (!submission.model) return "Please enter the vehicle model.";
+  if (!submission.ownerName) return "Please enter the owner or submitter name.";
   if (!submission.tireSize) return "Please enter the tire size.";
-  if (submission.wheelOffset !== null && !Number.isFinite(submission.wheelOffset)) return "Please enter a valid wheel offset.";
-  if (submission.liftHeight !== null && !Number.isFinite(submission.liftHeight)) return "Please enter a valid lift height.";
-  if (submission.sourceUrl && !isValidUrl(submission.sourceUrl)) return "Please enter a valid source URL.";
+  if (!submission.wheelSize) return "Please enter the wheel size.";
+  if (!submission.suspensionSetup && submission.liftHeight === null) return "Please enter either the lift height or suspension setup.";
+  if (!submission.rubbingSeverity) return "Please select the rubbing severity.";
+  if (submission.wheelOffset !== null && !Number.isFinite(submission.wheelOffset)) return "Please enter a valid wheel offset, or leave it blank.";
+  if (submission.liftHeight !== null && !Number.isFinite(submission.liftHeight)) return "Please enter a valid lift height, or leave it blank.";
+  if (submission.sourceUrl && !isValidUrl(submission.sourceUrl)) return "Please enter a valid source URL, or leave it blank.";
   return null;
 }
 
@@ -218,7 +222,7 @@ function buildEmailText(submission: BuildSubmission, build: VerifiedBuildData, a
   return `New Driveline Build Submission
 
 Contact:
-Email: ${submission.contactEmail}
+Email: ${display(submission.contactEmail)}
 Owner: ${display(submission.ownerName)}
 Social: ${display(submission.socialHandle)}
 
@@ -264,7 +268,7 @@ function buildNotes(submission: BuildSubmission) {
     submission.fitmentNotes ? `Fitment notes: ${submission.fitmentNotes}` : null,
     submission.fullBuildList ? `Full build list: ${submission.fullBuildList}` : null,
     submission.socialHandle ? `Social handle: ${submission.socialHandle}` : null,
-    `Contact email: ${submission.contactEmail}`
+    submission.contactEmail ? `Contact email: ${submission.contactEmail}` : null
   ].filter((value): value is string => Boolean(value)).join("\n\n");
 }
 
