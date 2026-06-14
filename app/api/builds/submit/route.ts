@@ -4,11 +4,26 @@ import { getCurrentSupabaseUser } from "@/lib/supabase/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const optionalText = z.preprocess(
-  (value) => (typeof value === "string" && value.trim() === "" ? null : value),
-  z.string().trim().nullable().optional()
-).transform((value) => value ?? null);
+function emptyToNull(value: unknown) {
+  return value === "" || value === undefined ? null : value;
+}
 
+function numberOrNull(value: unknown) {
+  if (value === "" || value === undefined || value === null) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function booleanOrNull(value: unknown) {
+  if (value === "" || value === undefined || value === null) return null;
+  if (value === true || value === "true" || value === "yes" || value === "Yes") return true;
+  if (value === false || value === "false" || value === "no" || value === "No") return false;
+  return null;
+}
+
+const optionalText = z.preprocess(emptyToNull, z.string().trim().nullable().optional()).transform((value) => value ?? null);
+const optionalNumber = z.preprocess(numberOrNull, z.number().nullable()).transform((value) => value ?? null);
+const optionalBoolean = z.preprocess(booleanOrNull, z.boolean().nullable()).transform((value) => value ?? null);
 const optionalUrl = optionalText.refine((value) => {
   if (!value) return true;
   try {
@@ -19,82 +34,102 @@ const optionalUrl = optionalText.refine((value) => {
   }
 }, "Invalid URL");
 
-const optionalNumber = z.preprocess(
-  (value) => (value === "" || value === null || value === undefined ? null : value),
-  z.coerce.number().nullable().optional()
-).transform((value) => value ?? null);
-
-const yesNoUnknown = z.enum(["true", "false", "unknown", "Unknown", "yes", "no", "Yes", "No", ""]).transform((value) => {
-  const normalized = value.toLowerCase();
-  if (normalized === "true" || normalized === "yes") return true;
-  if (normalized === "false" || normalized === "no") return false;
-  return null;
-});
-
 const schema = z.object({
   year: z.coerce.number().int().min(1995).max(2035),
-  make: optionalText.default("Toyota"),
-  model: optionalText.default("Tacoma"),
+  make: optionalText,
+  model: optionalText,
   trim: optionalText,
   cab: optionalText,
   bed: optionalText,
-  tire_size: z.string().trim().min(5),
-  tire_brand: optionalText,
-  tire_model: optionalText,
-  wheel_size: z.string().trim().min(2),
-  wheel_brand: optionalText,
-  wheel_model: optionalText,
+  tire_size: z.string().trim().min(1),
+  wheel_size: optionalText,
   wheel_offset: optionalNumber,
   lift_height: optionalNumber,
   suspension_setup: optionalText,
-  suspension_brand: optionalText,
-  suspension_model: optionalText,
-  suspension_type: optionalText,
-  rubbing_severity: z.string().trim().min(1),
-  trimming_required: yesNoUnknown,
-  body_mount_chop: yesNoUnknown,
-  fitment_risk: z.enum(["low", "medium", "high", "unknown", "Unknown", "Low", "Medium", "High", ""]).optional().transform((value) => {
+  rubbing_severity: optionalText,
+  trimming_required: optionalBoolean,
+  body_mount_chop: optionalBoolean,
+  fitment_risk: z.preprocess(emptyToNull, z.enum(["low", "medium", "high", "Low", "Medium", "High"]).nullable().optional()).transform((value) => {
     const normalized = value?.toLowerCase();
-    if (normalized === "low" || normalized === "high") return normalized;
-    return "medium";
+    return normalized === "low" || normalized === "high" ? normalized : "medium";
   }),
   notes: optionalText,
-  owner_name: z.string().trim().min(1),
+  owner_name: optionalText,
   owner_email: optionalText,
   source_url: optionalUrl,
-  photo_url: optionalUrl
-}).refine((data) => data.suspension_setup || data.lift_height !== null, {
-  message: "Lift height or suspension setup is required.",
-  path: ["suspension_setup"]
+  photo_url: optionalUrl,
+  tire_brand: optionalText,
+  tire_model: optionalText,
+  wheel_brand: optionalText,
+  wheel_model: optionalText,
+  suspension_brand: optionalText,
+  suspension_model: optionalText,
+  suspension_type: optionalText
 });
 
 export async function POST(request: Request) {
-  const parsed = schema.safeParse(await request.json());
-  if (!parsed.success) return NextResponse.json({ error: "Invalid build submission." }, { status: 400 });
+  try {
+    const parsed = schema.safeParse(await request.json());
+    if (!parsed.success) return NextResponse.json({ error: "Invalid build submission.", details: parsed.error.flatten() }, { status: 400 });
 
-  const authSupabase = await createSupabaseServerClient();
-  const currentUser = await getCurrentSupabaseUser(authSupabase);
-  const supabase = createSupabaseAdminClient();
-  const { owner_email, photo_url, notes, make, model, fitment_risk, ...build } = parsed.data;
-  const ownerNotes = [
-    notes,
-    owner_email ? `Owner email: ${owner_email}` : null,
-    photo_url ? `Photo URL: ${photo_url}` : null
-  ].filter((value): value is string => Boolean(value)).join("\n\n");
+    const authSupabase = await createSupabaseServerClient();
+    const currentUser = await getCurrentSupabaseUser(authSupabase);
+    const supabase = createSupabaseAdminClient();
+    const data = parsed.data;
+    const notes = [
+      data.notes,
+      data.owner_email ? `Owner email: ${data.owner_email}` : null,
+      data.photo_url ? `Photo URL: ${data.photo_url}` : null,
+      data.tire_brand ? `Tire brand: ${data.tire_brand}` : null,
+      data.tire_model ? `Tire model: ${data.tire_model}` : null,
+      data.wheel_brand ? `Wheel brand: ${data.wheel_brand}` : null,
+      data.wheel_model ? `Wheel model: ${data.wheel_model}` : null,
+      data.suspension_brand ? `Suspension brand: ${data.suspension_brand}` : null,
+      data.suspension_model ? `Suspension model: ${data.suspension_model}` : null,
+      data.suspension_type ? `Suspension type: ${data.suspension_type}` : null
+    ].filter((value): value is string => Boolean(value)).join("\n\n") || null;
 
-  const { error } = await supabase.from("verified_builds").insert({
-    ...build,
-    user_id: currentUser?.userId ?? null,
-    make: make ?? "Toyota",
-    model: model ?? "Tacoma",
-    notes: ownerNotes || null,
-    fitment_risk: fitment_risk ?? "medium",
-    published: false
-  });
-  if (error) {
-    console.error("Verified build insert failed:", error);
-    return NextResponse.json({ error: "Could not submit build." }, { status: 500 });
+    const insertPayload = {
+      user_id: currentUser?.userId ?? null,
+      year: data.year,
+      make: data.make ?? "Toyota",
+      model: data.model ?? "Tacoma",
+      trim: data.trim,
+      cab: data.cab,
+      bed: data.bed,
+      tire_size: data.tire_size,
+      wheel_size: data.wheel_size,
+      wheel_offset: data.wheel_offset,
+      lift_height: data.lift_height,
+      suspension_setup: data.suspension_setup,
+      rubbing_severity: data.rubbing_severity,
+      trimming_required: data.trimming_required,
+      body_mount_chop: data.body_mount_chop,
+      fitment_risk: data.fitment_risk,
+      notes,
+      owner_name: data.owner_name,
+      source_url: data.source_url,
+      published: false
+    };
+
+    const { error } = await supabase.from("verified_builds").insert(insertPayload);
+    if (error) throw new Error(`Supabase verified_builds insert failed: ${error.message}`);
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("Submit build API error:", err);
+
+    return NextResponse.json(
+      {
+        error: "Build submission failed",
+        details:
+          err instanceof Error
+            ? err.message
+            : typeof err === "object"
+              ? JSON.stringify(err)
+              : String(err)
+      },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ ok: true });
 }

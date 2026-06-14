@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import { getCurrentSupabaseUser } from "@/lib/supabase/auth";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -12,12 +15,13 @@ const friendlyErrorMessage =
 type NullableString = string | null;
 type NullableNumber = number | null;
 type NullableBoolean = boolean | null;
+type FitmentRisk = "low" | "medium" | "high";
 
 type BuildSubmission = {
   contactEmail: NullableString;
   ownerName: NullableString;
   socialHandle: NullableString;
-  year: number;
+  year: NullableNumber;
   make: string;
   model: string;
   trim: NullableString;
@@ -28,7 +32,7 @@ type BuildSubmission = {
   tireSize: string;
   wheelBrand: NullableString;
   wheelModel: NullableString;
-  wheelSize: NullableString;
+  wheelSize: string;
   wheelOffset: NullableNumber;
   liftHeight: NullableNumber;
   suspensionBrand: NullableString;
@@ -38,14 +42,14 @@ type BuildSubmission = {
   rubbingSeverity: NullableString;
   trimmingRequired: NullableBoolean;
   bodyMountChop: NullableBoolean;
-  fitmentRisk: NullableString;
+  fitmentRisk: FitmentRisk;
   fitmentNotes: NullableString;
   sourceUrl: NullableString;
   fullBuildList: NullableString;
 };
 
-type VerifiedBuildData = {
-  user_id: null;
+type VerifiedBuildInsert = {
+  user_id: string | null;
   year: number;
   make: string;
   model: string;
@@ -53,22 +57,15 @@ type VerifiedBuildData = {
   cab: NullableString;
   bed: NullableString;
   tire_size: string;
-  tire_brand: NullableString;
-  tire_model: NullableString;
-  wheel_size: NullableString;
-  wheel_brand: NullableString;
-  wheel_model: NullableString;
+  wheel_size: string;
   wheel_offset: NullableNumber;
   lift_height: NullableNumber;
   suspension_setup: NullableString;
-  suspension_brand: NullableString;
-  suspension_model: NullableString;
-  suspension_type: NullableString;
   rubbing_severity: NullableString;
   trimming_required: NullableBoolean;
   body_mount_chop: NullableBoolean;
-  fitment_risk: "low" | "medium" | "high";
-  notes: string;
+  fitment_risk: FitmentRisk;
+  notes: NullableString;
   owner_name: NullableString;
   source_url: NullableString;
   published: false;
@@ -89,75 +86,81 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
-    const resendApiKey = process.env.RESEND_API_KEY;
-    if (!resendApiKey) {
-      console.error("Missing RESEND_API_KEY for build submission email.");
-      return NextResponse.json({ error: friendlyErrorMessage }, { status: 500 });
+    const authSupabase = await createSupabaseServerClient();
+    const currentUser = await getCurrentSupabaseUser(authSupabase);
+    const insertPayload = buildVerifiedBuildInsert(submission, currentUser?.userId ?? null);
+    const supabase = createSupabaseAdminClient();
+
+    const { data: insertedBuild, error: insertError } = await supabase
+      .from("verified_builds")
+      .insert(insertPayload)
+      .select("id")
+      .single();
+
+    if (insertError) {
+      throw new Error(`Supabase verified_builds insert failed: ${insertError.message}`);
     }
 
     const attachmentFile = formData.get("attachment");
     const attachments = await buildAttachments(attachmentFile);
-    const verifiedBuildData = mapToVerifiedBuildData(submission);
-    const resend = new Resend(resendApiKey);
-    const subject = `New Driveline Build Submission - ${submission.year} ${submission.make} ${submission.model}`;
+    await sendSubmissionEmail(submission, insertPayload, insertedBuild?.id ?? null, attachments);
 
-    const { error } = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || "Driveline <onboarding@resend.dev>",
-      to: destinationEmail,
-      replyTo: submission.contactEmail ?? undefined,
-      subject,
-      text: buildEmailText(submission, verifiedBuildData, attachments[0]?.filename ?? null),
-      attachments
-    });
+    return NextResponse.json({ ok: true, buildId: insertedBuild?.id ?? null });
+  } catch (err) {
+    console.error("Submit build API error:", err);
 
-    if (error) {
-      console.error("Build submission email failed:", error);
-      return NextResponse.json({ error: friendlyErrorMessage }, { status: 500 });
-    }
-
-    return NextResponse.json({ ok: true });
-  } catch (error) {
-    console.error("Build submission route failed:", error);
-    return NextResponse.json({ error: friendlyErrorMessage }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "Build submission failed",
+        message: friendlyErrorMessage,
+        details:
+          err instanceof Error
+            ? err.message
+            : typeof err === "object"
+              ? JSON.stringify(err)
+              : String(err)
+      },
+      { status: 500 }
+    );
   }
 }
 
 function parseSubmission(formData: FormData): BuildSubmission {
   return {
-    contactEmail: stringValue(formData, "contactEmail"),
-    ownerName: stringValue(formData, "ownerName"),
-    socialHandle: stringValue(formData, "socialHandle"),
-    year: Number(stringValue(formData, "year")),
-    make: stringValue(formData, "make") ?? "",
-    model: stringValue(formData, "model") ?? "",
-    trim: stringValue(formData, "trim"),
-    cab: stringValue(formData, "cab"),
-    bed: stringValue(formData, "bed"),
-    tireBrand: stringValue(formData, "tireBrand"),
-    tireModel: stringValue(formData, "tireModel"),
-    tireSize: stringValue(formData, "tireSize") ?? "",
-    wheelBrand: stringValue(formData, "wheelBrand"),
-    wheelModel: stringValue(formData, "wheelModel"),
-    wheelSize: stringValue(formData, "wheelSize"),
-    wheelOffset: numberValue(formData, "wheelOffset"),
-    liftHeight: numberValue(formData, "liftHeight"),
-    suspensionBrand: stringValue(formData, "suspensionBrand"),
-    suspensionModel: stringValue(formData, "suspensionModel"),
-    suspensionType: stringValue(formData, "suspensionType"),
-    suspensionSetup: stringValue(formData, "suspensionSetup"),
-    rubbingSeverity: stringValue(formData, "rubbingSeverity"),
-    trimmingRequired: booleanValue(formData, "trimmingRequired"),
-    bodyMountChop: booleanValue(formData, "bodyMountChop"),
-    fitmentRisk: stringValue(formData, "fitmentRisk"),
-    fitmentNotes: stringValue(formData, "fitmentNotes"),
-    sourceUrl: stringValue(formData, "sourceUrl"),
-    fullBuildList: stringValue(formData, "fullBuildList")
+    contactEmail: emptyToNull(formData.get("contactEmail")),
+    ownerName: emptyToNull(formData.get("ownerName")),
+    socialHandle: emptyToNull(formData.get("socialHandle")),
+    year: numberOrNull(formData.get("year")),
+    make: emptyToNull(formData.get("make")) ?? "Toyota",
+    model: emptyToNull(formData.get("model")) ?? "Tacoma",
+    trim: emptyToNull(formData.get("trim")),
+    cab: emptyToNull(formData.get("cab")),
+    bed: emptyToNull(formData.get("bed")),
+    tireBrand: emptyToNull(formData.get("tireBrand")),
+    tireModel: emptyToNull(formData.get("tireModel")),
+    tireSize: emptyToNull(formData.get("tireSize")) ?? "",
+    wheelBrand: emptyToNull(formData.get("wheelBrand")),
+    wheelModel: emptyToNull(formData.get("wheelModel")),
+    wheelSize: emptyToNull(formData.get("wheelSize")) ?? "",
+    wheelOffset: numberOrNull(formData.get("wheelOffset")),
+    liftHeight: numberOrNull(formData.get("liftHeight")),
+    suspensionBrand: emptyToNull(formData.get("suspensionBrand")),
+    suspensionModel: emptyToNull(formData.get("suspensionModel")),
+    suspensionType: emptyToNull(formData.get("suspensionType")),
+    suspensionSetup: emptyToNull(formData.get("suspensionSetup")),
+    rubbingSeverity: emptyToNull(formData.get("rubbingSeverity")),
+    trimmingRequired: booleanOrNull(formData.get("trimmingRequired")),
+    bodyMountChop: booleanOrNull(formData.get("bodyMountChop")),
+    fitmentRisk: riskOrMedium(formData.get("fitmentRisk")),
+    fitmentNotes: emptyToNull(formData.get("fitmentNotes")),
+    sourceUrl: emptyToNull(formData.get("sourceUrl")),
+    fullBuildList: emptyToNull(formData.get("fullBuildList"))
   };
 }
 
 function validateSubmission(submission: BuildSubmission) {
   if (submission.contactEmail && !isValidEmail(submission.contactEmail)) return "Please enter a valid contact email, or leave it blank.";
-  if (!Number.isInteger(submission.year) || submission.year < 1995 || submission.year > 2035) return "Please enter a valid vehicle year.";
+  if (!submission.year || !Number.isInteger(submission.year) || submission.year < 1995 || submission.year > 2035) return "Please enter a valid vehicle year.";
   if (!submission.make) return "Please enter the vehicle make.";
   if (!submission.model) return "Please enter the vehicle model.";
   if (!submission.ownerName) return "Please enter the owner or submitter name.";
@@ -165,42 +168,61 @@ function validateSubmission(submission: BuildSubmission) {
   if (!submission.wheelSize) return "Please enter the wheel size.";
   if (!submission.suspensionSetup && submission.liftHeight === null) return "Please enter either the lift height or suspension setup.";
   if (!submission.rubbingSeverity) return "Please select the rubbing severity.";
-  if (submission.wheelOffset !== null && !Number.isFinite(submission.wheelOffset)) return "Please enter a valid wheel offset, or leave it blank.";
-  if (submission.liftHeight !== null && !Number.isFinite(submission.liftHeight)) return "Please enter a valid lift height, or leave it blank.";
   if (submission.sourceUrl && !isValidUrl(submission.sourceUrl)) return "Please enter a valid source URL, or leave it blank.";
   return null;
 }
 
-function mapToVerifiedBuildData(submission: BuildSubmission): VerifiedBuildData {
+function buildVerifiedBuildInsert(submission: BuildSubmission, userId: string | null): VerifiedBuildInsert {
   return {
-    user_id: null,
-    year: submission.year,
-    make: submission.make,
-    model: submission.model,
+    user_id: userId,
+    year: submission.year ?? new Date().getFullYear(),
+    make: submission.make || "Toyota",
+    model: submission.model || "Tacoma",
     trim: submission.trim,
     cab: submission.cab,
     bed: submission.bed,
     tire_size: submission.tireSize,
-    tire_brand: submission.tireBrand,
-    tire_model: submission.tireModel,
     wheel_size: submission.wheelSize,
-    wheel_brand: submission.wheelBrand,
-    wheel_model: submission.wheelModel,
     wheel_offset: submission.wheelOffset,
     lift_height: submission.liftHeight,
     suspension_setup: submission.suspensionSetup,
-    suspension_brand: submission.suspensionBrand,
-    suspension_model: submission.suspensionModel,
-    suspension_type: submission.suspensionType,
     rubbing_severity: submission.rubbingSeverity,
     trimming_required: submission.trimmingRequired,
     body_mount_chop: submission.bodyMountChop,
-    fitment_risk: normalizeRisk(submission.fitmentRisk),
+    fitment_risk: submission.fitmentRisk,
     notes: buildNotes(submission),
     owner_name: submission.ownerName,
     source_url: submission.sourceUrl,
     published: false
   };
+}
+
+async function sendSubmissionEmail(
+  submission: BuildSubmission,
+  build: VerifiedBuildInsert,
+  buildId: string | null,
+  attachments: EmailAttachment[]
+) {
+  const resendApiKey = process.env.RESEND_API_KEY;
+  if (!resendApiKey) {
+    console.error("Missing RESEND_API_KEY for build submission notification; build was still saved.");
+    return;
+  }
+
+  const resend = new Resend(resendApiKey);
+  const subject = `New Driveline Build Submission - ${build.year} ${build.make} ${build.model}`;
+  const { error } = await resend.emails.send({
+    from: process.env.RESEND_FROM_EMAIL || "Driveline <onboarding@resend.dev>",
+    to: destinationEmail,
+    replyTo: submission.contactEmail ?? undefined,
+    subject,
+    text: buildEmailText(submission, build, buildId, attachments[0]?.filename ?? null),
+    attachments
+  });
+
+  if (error) {
+    console.error("Build submission notification email failed; build was still saved:", error);
+  }
 }
 
 async function buildAttachments(value: FormDataEntryValue | null): Promise<EmailAttachment[]> {
@@ -218,12 +240,14 @@ async function buildAttachments(value: FormDataEntryValue | null): Promise<Email
   ];
 }
 
-function buildEmailText(submission: BuildSubmission, build: VerifiedBuildData, attachmentName: string | null) {
+function buildEmailText(submission: BuildSubmission, build: VerifiedBuildInsert, buildId: string | null, attachmentName: string | null) {
   return `New Driveline Build Submission
+
+Build ID: ${buildId ?? "Not available"}
 
 Contact:
 Email: ${display(submission.contactEmail)}
-Owner: ${display(submission.ownerName)}
+Owner: ${display(build.owner_name)}
 Social: ${display(submission.socialHandle)}
 
 Vehicle:
@@ -235,19 +259,19 @@ Cab: ${display(build.cab)}
 Bed: ${display(build.bed)}
 
 Wheels & Tires:
-Wheel Brand: ${display(build.wheel_brand)}
-Wheel Model: ${display(build.wheel_model)}
-Wheel Size: ${display(build.wheel_size)}
+Wheel Brand: ${display(submission.wheelBrand)}
+Wheel Model: ${display(submission.wheelModel)}
+Wheel Size: ${build.wheel_size}
 Wheel Offset: ${displayNumber(build.wheel_offset)}
-Tire Brand: ${display(build.tire_brand)}
-Tire Model: ${display(build.tire_model)}
+Tire Brand: ${display(submission.tireBrand)}
+Tire Model: ${display(submission.tireModel)}
 Tire Size: ${build.tire_size}
 
 Suspension & Clearance:
 Lift Height: ${displayNumber(build.lift_height)}
-Suspension Brand: ${display(build.suspension_brand)}
-Suspension Model: ${display(build.suspension_model)}
-Suspension Type: ${display(build.suspension_type)}
+Suspension Brand: ${display(submission.suspensionBrand)}
+Suspension Model: ${display(submission.suspensionModel)}
+Suspension Type: ${display(submission.suspensionType)}
 Suspension Details: ${display(build.suspension_setup)}
 Rubbing Severity: ${display(build.rubbing_severity)}
 Trimming Required: ${displayBoolean(build.trimming_required)}
@@ -267,33 +291,42 @@ function buildNotes(submission: BuildSubmission) {
   return [
     submission.fitmentNotes ? `Fitment notes: ${submission.fitmentNotes}` : null,
     submission.fullBuildList ? `Full build list: ${submission.fullBuildList}` : null,
+    submission.tireBrand ? `Tire brand: ${submission.tireBrand}` : null,
+    submission.tireModel ? `Tire model: ${submission.tireModel}` : null,
+    submission.wheelBrand ? `Wheel brand: ${submission.wheelBrand}` : null,
+    submission.wheelModel ? `Wheel model: ${submission.wheelModel}` : null,
+    submission.suspensionBrand ? `Suspension brand: ${submission.suspensionBrand}` : null,
+    submission.suspensionModel ? `Suspension model: ${submission.suspensionModel}` : null,
+    submission.suspensionType ? `Suspension type: ${submission.suspensionType}` : null,
     submission.socialHandle ? `Social handle: ${submission.socialHandle}` : null,
     submission.contactEmail ? `Contact email: ${submission.contactEmail}` : null
-  ].filter((value): value is string => Boolean(value)).join("\n\n");
+  ].filter((value): value is string => Boolean(value)).join("\n\n") || null;
 }
 
-function stringValue(formData: FormData, key: string): NullableString {
-  const value = formData.get(key);
+function emptyToNull(value: unknown): NullableString {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
 }
 
-function numberValue(formData: FormData, key: string): NullableNumber {
-  const value = stringValue(formData, key);
-  if (value === null) return null;
-  return Number(value);
+function numberOrNull(value: unknown): NullableNumber {
+  const text = emptyToNull(value);
+  if (text === null) return null;
+  const number = Number(text);
+  return Number.isFinite(number) ? number : null;
 }
 
-function booleanValue(formData: FormData, key: string): NullableBoolean {
-  const value = stringValue(formData, key)?.toLowerCase();
-  if (value === "yes") return true;
-  if (value === "no") return false;
+function booleanOrNull(value: unknown): NullableBoolean {
+  const text = emptyToNull(value)?.toLowerCase();
+  if (!text || text === "unknown") return null;
+  if (text === "true" || text === "yes") return true;
+  if (text === "false" || text === "no") return false;
   return null;
 }
 
-function normalizeRisk(value: NullableString): "low" | "medium" | "high" {
-  if (value === "low" || value === "high") return value;
+function riskOrMedium(value: unknown): FitmentRisk {
+  const text = emptyToNull(value)?.toLowerCase();
+  if (text === "low" || text === "high") return text;
   return "medium";
 }
 
@@ -315,7 +348,7 @@ function display(value: NullableString) {
 }
 
 function displayNumber(value: NullableNumber) {
-  return value === null ? "Not provided" : String(value);
+  return value === null ? "Unknown" : String(value);
 }
 
 function displayBoolean(value: NullableBoolean) {

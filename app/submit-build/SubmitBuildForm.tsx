@@ -81,21 +81,27 @@ export function SubmitBuildForm() {
         body: new FormData(form)
       });
 
-      const payload = await response.json().catch((error) => {
-        console.error("Build submission response could not be read", error);
-        return {};
-      });
+      const text = await response.text();
+      let payload: { error?: string; message?: string; raw?: string } | null;
+      try {
+        payload = text ? JSON.parse(text) : null;
+      } catch {
+        payload = { raw: text };
+      }
 
       if (!response.ok) {
-        console.error("Build submission failed", payload);
-        setStatus(typeof payload.error === "string" ? payload.error : friendlyErrorMessage);
-        return;
+        console.error("Build submission failed", {
+          status: response.status,
+          statusText: response.statusText,
+          response: payload
+        });
+        throw new Error(payload?.error || payload?.message || "Build submission failed");
       }
 
       router.push("/submit-build/thank-you");
     } catch (error) {
       console.error("Build submission request failed", error);
-      setStatus(friendlyErrorMessage);
+      setStatus(error instanceof Error && error.message !== "Build submission failed" ? error.message : friendlyErrorMessage);
     } finally {
       setIsSubmitting(false);
     }
