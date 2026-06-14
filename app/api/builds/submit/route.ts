@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { getCurrentSupabaseUser } from "@/lib/supabase/auth";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 function emptyToNull(value: unknown) {
   return value === "" || value === undefined ? null : value;
@@ -67,14 +70,49 @@ const schema = z.object({
   suspension_type: optionalText
 });
 
+async function getOptionalCurrentUser() {
+  try {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error("Skipping builds submit auth lookup because Supabase public auth env vars are missing.", {
+        hasUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
+        hasAnonKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+      });
+      return null;
+    }
+
+    const authSupabase = await createSupabaseServerClient();
+    return getCurrentSupabaseUser(authSupabase);
+  } catch (error) {
+    console.error("Builds submit auth lookup failed; continuing as anonymous submission:", error);
+    return null;
+  }
+}
+
 export async function POST(request: Request) {
   try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl) {
+      console.error("Missing NEXT_PUBLIC_SUPABASE_URL for builds submit route.");
+      return NextResponse.json({ error: "Server is missing NEXT_PUBLIC_SUPABASE_URL" }, { status: 500 });
+    }
+
+    if (!serviceRoleKey) {
+      console.error("Missing SUPABASE_SERVICE_ROLE_KEY for builds submit route.");
+      return NextResponse.json({ error: "Server is missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
+    }
+
     const parsed = schema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ error: "Invalid build submission.", details: parsed.error.flatten() }, { status: 400 });
 
-    const authSupabase = await createSupabaseServerClient();
-    const currentUser = await getCurrentSupabaseUser(authSupabase);
-    const supabase = createSupabaseAdminClient();
+    const currentUser = await getOptionalCurrentUser();
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
     const data = parsed.data;
     const notes = [
       data.notes,

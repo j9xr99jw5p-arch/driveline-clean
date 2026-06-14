@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import { createClient } from "@supabase/supabase-js";
 import { getCurrentSupabaseUser } from "@/lib/supabase/auth";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const destinationEmail = "driveline217@gmail.com";
 // TODO: Use "Driveline <builds@tacomaverifier.net>" after tacomaverifier.net is verified in Resend.
@@ -80,6 +81,31 @@ type EmailAttachment = {
 
 export async function POST(request: Request) {
   try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl) {
+      console.error("Missing NEXT_PUBLIC_SUPABASE_URL for submit-build route.");
+      return NextResponse.json(
+        {
+          error: "Server is missing NEXT_PUBLIC_SUPABASE_URL",
+          message: friendlyErrorMessage
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!serviceRoleKey) {
+      console.error("Missing SUPABASE_SERVICE_ROLE_KEY for submit-build route.");
+      return NextResponse.json(
+        {
+          error: "Server is missing SUPABASE_SERVICE_ROLE_KEY",
+          message: friendlyErrorMessage
+        },
+        { status: 500 }
+      );
+    }
+
     const formData = await request.formData();
     const submission = parseSubmission(formData);
     const validationError = validateSubmission(submission);
@@ -88,10 +114,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
-    const authSupabase = await createSupabaseServerClient();
-    const currentUser = await getCurrentSupabaseUser(authSupabase);
+    console.log("Submit build request body:", {
+      year: submission.year,
+      make: submission.make,
+      model: submission.model,
+      tireSize: submission.tireSize,
+      wheelSize: submission.wheelSize,
+      hasAttachment: isFileLike(formData.get("attachment"))
+    });
+
+    const currentUser = await getOptionalCurrentUser();
     const insertPayload = buildVerifiedBuildInsert(submission, currentUser?.userId ?? null);
-    const supabase = createSupabaseAdminClient();
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
 
     const { data: insertedBuild, error: insertError } = await supabase
       .from("verified_builds")
@@ -115,7 +154,7 @@ export async function POST(request: Request) {
           buildId: insertedBuild?.id ?? null,
           resendError: serializeError(emailError)
         },
-        { status: 502 }
+        { status: 500 }
       );
     }
 
@@ -136,6 +175,24 @@ export async function POST(request: Request) {
       },
       { status: 500 }
     );
+  }
+}
+
+async function getOptionalCurrentUser() {
+  try {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error("Skipping submit-build auth lookup because Supabase public auth env vars are missing.", {
+        hasUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
+        hasAnonKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+      });
+      return null;
+    }
+
+    const authSupabase = await createSupabaseServerClient();
+    return getCurrentSupabaseUser(authSupabase);
+  } catch (error) {
+    console.error("Submit build auth lookup failed; continuing as anonymous submission:", error);
+    return null;
   }
 }
 
@@ -244,7 +301,7 @@ async function sendSubmissionEmail(
 }
 
 async function buildAttachments(value: FormDataEntryValue | null): Promise<EmailAttachment[]> {
-  if (!(value instanceof File) || value.size === 0) return [];
+  if (!isFileLike(value) || value.size === 0) return [];
 
   if (value.size > maxAttachmentBytes) {
     throw new Error("Attached file is larger than the 10 MB limit.");
@@ -256,6 +313,17 @@ async function buildAttachments(value: FormDataEntryValue | null): Promise<Email
       content: Buffer.from(await value.arrayBuffer())
     }
   ];
+}
+
+function isFileLike(value: FormDataEntryValue | null): value is File {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "arrayBuffer" in value &&
+      "size" in value &&
+      typeof value.size === "number" &&
+      "name" in value
+  );
 }
 
 function buildEmailText(submission: BuildSubmission, build: VerifiedBuildInsert, buildId: string | null, attachmentName: string | null) {
