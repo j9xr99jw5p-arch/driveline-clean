@@ -7,6 +7,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 
 const destinationEmail = "driveline217@gmail.com";
+// TODO: Use "Driveline <builds@tacomaverifier.net>" after tacomaverifier.net is verified in Resend.
+const resendFromEmail = "Driveline <onboarding@resend.dev>";
 const maxAttachmentBytes = 10 * 1024 * 1024;
 
 const friendlyErrorMessage =
@@ -103,7 +105,19 @@ export async function POST(request: Request) {
 
     const attachmentFile = formData.get("attachment");
     const attachments = await buildAttachments(attachmentFile);
-    await sendSubmissionEmail(submission, insertPayload, insertedBuild?.id ?? null, attachments);
+    const emailError = await sendSubmissionEmail(submission, insertPayload, insertedBuild?.id ?? null, attachments);
+
+    if (emailError) {
+      return NextResponse.json(
+        {
+          error: "Build submission email failed",
+          message: friendlyErrorMessage,
+          buildId: insertedBuild?.id ?? null,
+          resendError: serializeError(emailError)
+        },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({ ok: true, buildId: insertedBuild?.id ?? null });
   } catch (err) {
@@ -202,17 +216,18 @@ async function sendSubmissionEmail(
   build: VerifiedBuildInsert,
   buildId: string | null,
   attachments: EmailAttachment[]
-) {
+): Promise<unknown | null> {
   const resendApiKey = process.env.RESEND_API_KEY;
   if (!resendApiKey) {
-    console.error("Missing RESEND_API_KEY for build submission notification; build was still saved.");
-    return;
+    const error = new Error("Missing RESEND_API_KEY for build submission notification; build was still saved.");
+    console.error(error.message);
+    return error;
   }
 
   const resend = new Resend(resendApiKey);
   const subject = `New Driveline Build Submission - ${build.year} ${build.make} ${build.model}`;
   const { error } = await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL || "Driveline <onboarding@resend.dev>",
+    from: resendFromEmail,
     to: destinationEmail,
     replyTo: submission.contactEmail ?? undefined,
     subject,
@@ -222,7 +237,10 @@ async function sendSubmissionEmail(
 
   if (error) {
     console.error("Build submission notification email failed; build was still saved:", error);
+    return error;
   }
+
+  return null;
 }
 
 async function buildAttachments(value: FormDataEntryValue | null): Promise<EmailAttachment[]> {
@@ -243,7 +261,8 @@ async function buildAttachments(value: FormDataEntryValue | null): Promise<Email
 function buildEmailText(submission: BuildSubmission, build: VerifiedBuildInsert, buildId: string | null, attachmentName: string | null) {
   return `New Driveline Build Submission
 
-Build ID: ${buildId ?? "Not available"}
+Build ID
+${buildId ?? "Not available"}
 
 Contact:
 Email: ${display(submission.contactEmail)}
@@ -341,6 +360,18 @@ function isValidUrl(value: string) {
   } catch {
     return false;
   }
+}
+
+function serializeError(error: unknown) {
+  if (error instanceof Error) {
+    return { name: error.name, message: error.message };
+  }
+
+  if (typeof error === "object" && error !== null) {
+    return error;
+  }
+
+  return String(error);
 }
 
 function display(value: NullableString) {
