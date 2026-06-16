@@ -95,7 +95,7 @@ export function SubmitBuildForm() {
           statusText: response.statusText,
           response: payload
         });
-        throw new Error(payload?.error || payload?.message || "Build submission failed");
+        throw new Error(response.status >= 500 ? friendlyErrorMessage : payload?.error || payload?.message || "Build submission failed");
       }
 
       router.push("/submit-build/thank-you");
@@ -191,7 +191,7 @@ export function SubmitBuildForm() {
         </label>
       </FormSection>
 
-      <button className="button primary full" type="submit" disabled={isSubmitting || !canSubmit}>
+      <button className="button primary full" type="submit" disabled={isSubmitting}>
         {isSubmitting ? "Submitting..." : "Submit Build"}
       </button>
       {status ? <p className="muted">{status}</p> : null}
