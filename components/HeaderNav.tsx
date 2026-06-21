@@ -9,7 +9,8 @@ const menuItems = [
   { href: "/builds", label: "Verified Builds" },
   { href: "/parts", label: "Parts" },
   { href: "/pricing", label: "Pricing" },
-  { href: "/submit-build", label: "Submit Build" }
+  { href: "/submit-build", label: "Submit Build" },
+  { href: "/account", label: "Account" }
 ];
 
 export function HeaderNav() {
@@ -56,7 +57,6 @@ export function HeaderNav() {
           </div>
         ) : null}
       </div>
-      <Link href="/account">Account</Link>
     </nav>
   );
 }
