@@ -294,6 +294,8 @@ function BuildReviewCard({ build }: { build: VerifiedBuild }) {
           <div className="detail-field"><span>Suspension</span><strong>{formatSuspension(build)}</strong></div>
           <div className="detail-field"><span>Fitment</span><strong>{formatPrimaryFitmentDetails(build)}</strong></div>
           <div className="detail-field"><span>Clearance</span><strong>{formatSecondaryFitmentDetails(build)}</strong></div>
+          <div className="detail-field"><span>Lighting</span><strong>{build.lighting_upgrades || "Not provided"}</strong></div>
+          <div className="detail-field"><span>Favorite mods</span><strong>{build.favorite_modifications || "Not provided"}</strong></div>
         </div>
       </details>
 

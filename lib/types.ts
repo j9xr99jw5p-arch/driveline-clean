@@ -23,6 +23,8 @@ export type VerifiedBuild = {
   suspension_brand?: string | null;
   suspension_model?: string | null;
   suspension_type?: string | null;
+  lighting_upgrades?: string | null;
+  favorite_modifications?: string | null;
   rubbing_severity: string | null;
   trimming_required: boolean | null;
   body_mount_chop: boolean | null;

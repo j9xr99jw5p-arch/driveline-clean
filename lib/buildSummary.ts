@@ -18,8 +18,12 @@ export function createLocalBuildSummary(build: VerifiedBuild) {
     build.trimming_required !== null ? `trimming: ${trimming}` : null,
     build.body_mount_chop !== null ? `body mount chop: ${bodyMountChop}` : null
   ].filter(Boolean).join(", ");
+  const extraMods = [
+    build.lighting_upgrades ? `Lighting upgrades include ${build.lighting_upgrades}.` : null,
+    build.favorite_modifications ? `Favorite recommended modifications include ${build.favorite_modifications}.` : null
+  ].filter(Boolean).join(" ");
 
-  return `${title} is running ${wheelTire}${lift ? ` with a ${lift}` : ""}${suspension && suspension !== "Unknown" ? ` and ${suspension}` : ""}. The owner reported ${rubbing}, and this setup is currently classified as ${risk}. ${clearanceWork ? `For clearance, the reported work is ${clearanceWork}. ` : ""}This is a useful real-world reference for comparing tire size, wheel offset, lift height, and the amount of trimming or body mount clearance needed before copying the setup.`;
+  return `${title} is running ${wheelTire}${lift ? ` with a ${lift}` : ""}${suspension && suspension !== "Unknown" ? ` and ${suspension}` : ""}. The owner reported ${rubbing}, and this setup is currently classified as ${risk}. ${clearanceWork ? `For clearance, the reported work is ${clearanceWork}. ` : ""}${extraMods ? `${extraMods} ` : ""}This is a useful real-world reference for comparing tire size, wheel offset, lift height, and the amount of trimming or body mount clearance needed before copying the setup.`;
 }
 
 export function buildSummaryPrompt(build: VerifiedBuild) {
@@ -48,6 +52,8 @@ ${JSON.stringify({
     suspension_brand: build.suspension_brand,
     suspension_model: build.suspension_model,
     suspension_type: build.suspension_type,
+    lighting_upgrades: build.lighting_upgrades,
+    favorite_modifications: build.favorite_modifications,
     rubbing_severity: build.rubbing_severity,
     trimming_required: formatBoolean(build.trimming_required),
     body_mount_chop: formatBoolean(build.body_mount_chop),

@@ -221,6 +221,8 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
               ["Rubbing", typedBuild.rubbing_severity],
               ["Trimming", formatBoolean(typedBuild.trimming_required)],
               ["Body mount chop", formatBoolean(typedBuild.body_mount_chop)],
+              ["Lighting", typedBuild.lighting_upgrades],
+              ["Favorite mods", typedBuild.favorite_modifications],
               ["Social", socialHandle]
               ].map(([label, value]) => (
                 <div className="build-fact" key={label}><span>{label}</span><strong>{value || "Unknown"}</strong></div>

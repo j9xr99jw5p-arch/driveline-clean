@@ -291,6 +291,14 @@ export function SubmitBuildForm() {
       <FormSection title="Extra Build Details">
         <Field name="sourceUrl" label="Source URL, optional" placeholder="https://..." type="url" required={false} />
         <label className="field">
+          <span>Lighting upgrades, optional</span>
+          <textarea name="lightingUpgrades" placeholder="Light bars, pods, ditch lights, fogs, switch panels, wiring, or anything lighting-related." />
+        </label>
+        <label className="field">
+          <span>Favorite mods / recommendations, optional</span>
+          <textarea name="favoriteModifications" placeholder="What upgrades do you like most, or what would you recommend to other Tacoma owners?" />
+        </label>
+        <label className="field">
           <span>Full build list / extra notes, optional</span>
           <textarea name="fullBuildList" placeholder="Already have your setup written out? Paste the full build list here." />
           <small className="fine">Already have your setup written out? Paste the full build list here.</small>

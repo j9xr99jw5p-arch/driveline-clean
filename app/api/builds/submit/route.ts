@@ -67,7 +67,9 @@ const schema = z.object({
   wheel_model: optionalText,
   suspension_brand: optionalText,
   suspension_model: optionalText,
-  suspension_type: optionalText
+  suspension_type: optionalText,
+  lighting_upgrades: optionalText,
+  favorite_modifications: optionalText
 });
 
 async function getOptionalCurrentUser() {
@@ -123,7 +125,9 @@ export async function POST(request: Request) {
       data.wheel_model ? `Wheel model: ${data.wheel_model}` : null,
       data.suspension_brand ? `Suspension brand: ${data.suspension_brand}` : null,
       data.suspension_model ? `Suspension model: ${data.suspension_model}` : null,
-      data.suspension_type ? `Suspension type: ${data.suspension_type}` : null
+      data.suspension_type ? `Suspension type: ${data.suspension_type}` : null,
+      data.lighting_upgrades ? `Lighting upgrades: ${data.lighting_upgrades}` : null,
+      data.favorite_modifications ? `Favorite modifications / recommendations: ${data.favorite_modifications}` : null
     ].filter((value): value is string => Boolean(value)).join("\n\n") || null;
 
     const insertPayload = {
@@ -143,6 +147,8 @@ export async function POST(request: Request) {
       trimming_required: data.trimming_required,
       body_mount_chop: data.body_mount_chop,
       fitment_risk: data.fitment_risk,
+      lighting_upgrades: data.lighting_upgrades,
+      favorite_modifications: data.favorite_modifications,
       notes,
       owner_name: data.owner_name?.startsWith("@") ? data.owner_name : "Anonymous",
       source_url: data.source_url,
@@ -150,6 +156,12 @@ export async function POST(request: Request) {
     };
 
     const { error } = await supabase.from("verified_builds").insert(insertPayload);
+    if (error?.code === "42703" || error?.code === "PGRST204") {
+      const { lighting_upgrades, favorite_modifications, ...fallbackInsertPayload } = insertPayload;
+      const fallback = await supabase.from("verified_builds").insert(fallbackInsertPayload);
+      if (fallback.error) throw new Error(`Supabase verified_builds insert failed: ${fallback.error.message}`);
+      return NextResponse.json({ ok: true });
+    }
     if (error) throw new Error(`Supabase verified_builds insert failed: ${error.message}`);
 
     return NextResponse.json({ ok: true });

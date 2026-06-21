@@ -51,10 +51,14 @@ export async function POST(request: Request) {
     const suspensionType = getString("suspensionType");
     const suspensionBrand = getString("suspensionBrand");
     const suspensionModel = getString("suspensionModel");
+    const lightingUpgrades = getString("lightingUpgrades");
+    const favoriteModifications = getString("favoriteModifications");
 
     const notes = [
       fitmentNotes && `Fitment notes: ${fitmentNotes}`,
       fullBuildList && `Full build list: ${fullBuildList}`,
+      lightingUpgrades && `Lighting upgrades: ${lightingUpgrades}`,
+      favoriteModifications && `Favorite modifications / recommendations: ${favoriteModifications}`,
       tireBrand && `Tire brand: ${tireBrand}`,
       tireModel && `Tire model: ${tireModel}`,
       wheelBrand && `Wheel brand: ${wheelBrand}`,
@@ -82,6 +86,8 @@ export async function POST(request: Request) {
       trimming_required: yesNoToBooleanOrNull(getString("trimmingRequired")),
       body_mount_chop: yesNoToBooleanOrNull(getString("bodyMountChop")),
       fitment_risk: normalizeRisk(getString("fitmentRisk")),
+      lighting_upgrades: lightingUpgrades || null,
+      favorite_modifications: favoriteModifications || null,
       source_url: getString("sourceUrl") || null,
       notes: notes || null,
       owner_name: socialHandle || "Anonymous",
@@ -116,11 +122,25 @@ export async function POST(request: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    const { data, error } = await supabase
+    const insertResult = await supabase
       .from("verified_builds")
       .insert(insertData)
       .select("id")
       .single();
+    let data = insertResult.data;
+    let error = insertResult.error;
+
+    if (error?.code === "42703" || error?.code === "PGRST204") {
+      const { lighting_upgrades, favorite_modifications, ...fallbackInsertData } = insertData;
+      const fallbackResult = await supabase
+        .from("verified_builds")
+        .insert(fallbackInsertData)
+        .select("id")
+        .single();
+
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
 
     if (error) {
       console.error("Supabase submit-build insert failed:", error);
@@ -129,6 +149,17 @@ export async function POST(request: Request) {
           error: "Build submission failed.",
           details: error.message,
           code: error.code
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!data) {
+      console.error("Supabase submit-build insert returned no data.");
+      return NextResponse.json(
+        {
+          error: "Build submission failed.",
+          details: "Build was not created."
         },
         { status: 500 }
       );
@@ -184,6 +215,8 @@ async function sendReviewNotification(
     source_url: string | null;
     notes: string | null;
     owner_name: string;
+    lighting_upgrades: string | null;
+    favorite_modifications: string | null;
   },
   replyTo: string
 ) {
@@ -231,6 +264,8 @@ function buildReviewEmailText(
     source_url: string | null;
     notes: string | null;
     owner_name: string;
+    lighting_upgrades: string | null;
+    favorite_modifications: string | null;
   }
 ) {
   return `A new Driveline build was submitted for review.
@@ -256,6 +291,12 @@ Rubbing severity: ${build.rubbing_severity ?? "Not provided"}
 Trimming required: ${displayBoolean(build.trimming_required)}
 Body mount chop: ${displayBoolean(build.body_mount_chop)}
 Fitment risk: ${build.fitment_risk}
+
+Lighting upgrades:
+${build.lighting_upgrades ?? "Not provided"}
+
+Favorite modifications / recommendations:
+${build.favorite_modifications ?? "Not provided"}
 
 Source URL: ${build.source_url ?? "Not provided"}
 
