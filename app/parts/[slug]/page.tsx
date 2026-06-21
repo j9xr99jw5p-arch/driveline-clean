@@ -189,7 +189,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
           ) : (
             <div className="card">
               <h2>No published builds are linked yet.</h2>
-              <p className="muted">Link this product to a verified build in Supabase to show it here.</p>
+              <p className="muted">Link this product to a verified build to show it here.</p>
             </div>
           )}
         </div>

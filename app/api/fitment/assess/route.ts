@@ -83,7 +83,7 @@ export async function POST(request: Request) {
   try {
     await saveGarageVehicleConfiguration(supabase, userId, input);
   } catch {
-    garageSyncError = "Assessment saved, but the garage vehicle could not be synced. Check that the vehicles migration has been run.";
+    garageSyncError = "Assessment saved, but the garage vehicle could not be synced. Please try again shortly.";
   }
 
   const admin = createSupabaseAdminClient();

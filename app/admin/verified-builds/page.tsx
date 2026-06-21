@@ -116,13 +116,13 @@ export default async function VerifiedBuildsAdminPage() {
         </div>
 
         {!hasSupabaseServerEnv() ? (
-          <AdminMessage title="Supabase is not configured." copy="The admin review queue cannot load without Supabase environment variables." />
+          <AdminMessage title="Site connection is not configured." copy="The admin review queue cannot load until the production settings are connected." />
         ) : !signedIn ? (
           <AdminMessage title="Sign in required." copy="Use your site sign-in flow, then return here to review unpublished submissions." />
         ) : !adminEmailAllowed ? (
           <AdminMessage title="Admin email required." copy="This account is signed in, but its email is not on the admin allowlist." />
         ) : !hasAdminPasswordConfigured() ? (
-          <AdminMessage title="Admin password is not configured." copy="Set ADMIN_PASSWORD and ADMIN_SESSION_SECRET in Netlify before using the admin approval queue." />
+          <AdminMessage title="Admin password is not configured." copy="Add the admin password and session secret in your hosting settings before using the admin approval queue." />
         ) : !adminUnlocked ? (
           <AdminPasswordForm email={currentEmail ?? ""} />
         ) : loadError ? (
@@ -248,7 +248,7 @@ function ProductStockPanel({ products }: { products: ProductStockRow[] }) {
           })}
         </div>
       ) : (
-        <p className="muted">Run the product catalog migrations to manage part stock here.</p>
+        <p className="muted">Finish the product catalog setup to manage part stock here.</p>
       )}
     </section>
   );
@@ -260,7 +260,7 @@ function VisitAnalyticsPanel({ analytics }: { analytics: VisitAnalytics | null }
       <section className="card admin-analytics admin-compact-card">
         <p className="eyebrow">Visitor Tracking</p>
         <h2>Analytics unavailable</h2>
-        <p className="muted">Run the `013_site_visits.sql` migration to enable compact visit analytics.</p>
+        <p className="muted">Finish the visitor tracking setup to enable compact visit analytics.</p>
       </section>
     );
   }
@@ -426,7 +426,7 @@ async function approveBuild(formData: FormData) {
   "use server";
 
   if (!hasSupabaseServerEnv()) {
-    throw new Error("Supabase is not configured.");
+    throw new Error("Site connection is not configured.");
   }
 
   const buildId = formData.get("buildId");
@@ -479,7 +479,7 @@ async function generateAiSummary(formData: FormData) {
   "use server";
 
   if (!hasSupabaseServerEnv()) {
-    throw new Error("Supabase is not configured.");
+    throw new Error("Site connection is not configured.");
   }
 
   const buildId = formData.get("buildId");
@@ -562,7 +562,7 @@ async function updateProductStock(formData: FormData) {
   "use server";
 
   if (!hasSupabaseServerEnv()) {
-    throw new Error("Supabase is not configured.");
+    throw new Error("Site connection is not configured.");
   }
 
   const variantId = formData.get("variantId");
@@ -601,7 +601,7 @@ async function unlockAdmin(formData: FormData) {
   "use server";
 
   if (!hasSupabaseServerEnv()) {
-    throw new Error("Supabase is not configured.");
+    throw new Error("Site connection is not configured.");
   }
 
   const supabase = await createSupabaseServerClient();

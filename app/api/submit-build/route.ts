@@ -111,7 +111,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error: "Build submission failed.",
-          details: "Server is missing Supabase configuration."
+          details: "Build submissions are temporarily unavailable."
         },
         { status: 500 }
       );
@@ -147,7 +147,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error: "Build submission failed.",
-          details: error.message,
+          details: "We could not save your build right now.",
           code: error.code
         },
         { status: 500 }

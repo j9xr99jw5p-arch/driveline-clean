@@ -17,7 +17,7 @@ export function PartsGrid({ products, categories }: { products: ProductSummary[]
         <div className="card filter-panel">
           <div>
             <p className="eyebrow">Categories</p>
-            <h2>Filter by parts in Supabase.</h2>
+            <h2>Filter the parts catalog.</h2>
           </div>
           <div className="parts-category-filter" role="list" aria-label="Part categories">
             <button className={category === "all" ? "active" : ""} type="button" onClick={() => setCategory("all")}>All</button>
@@ -65,7 +65,7 @@ export function PartsGrid({ products, categories }: { products: ProductSummary[]
       ) : (
         <div className="card">
           <h2>No parts in this category yet.</h2>
-          <p className="muted">Try another category or add active products in Supabase.</p>
+          <p className="muted">Try another category or check back as more products are added.</p>
         </div>
       )}
     </div>

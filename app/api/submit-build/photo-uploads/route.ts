@@ -130,7 +130,7 @@ async function completePhotoUploads(photos: unknown) {
 
 function createSubmitSupabaseClient() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error("Server is missing Supabase configuration.");
+    throw new Error("Photo uploads are temporarily unavailable.");
   }
 
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {

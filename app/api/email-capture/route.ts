@@ -33,7 +33,7 @@ export async function POST(req: Request) {
       });
 
       return NextResponse.json(
-        { error: "Missing Supabase server configuration." },
+        { error: "Email signup is temporarily unavailable." },
         { status: 500 }
       );
     }
@@ -73,8 +73,8 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          error: "Supabase insert failed.",
-          details: error.message,
+          error: "Email signup failed.",
+          details: "We could not save your email right now.",
           code: error.code
         },
         { status: 500 }
