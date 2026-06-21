@@ -4,18 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ProductSummary } from "@/lib/products";
 
-const categories = [
-  "Wheels",
-  "Tires",
-  "Suspension",
-  "Lighting",
-  "Armor",
-  "Performance",
-  "Recovery",
-  "Interior / Electronics"
-];
-
-export function PartsGrid({ products }: { products: ProductSummary[] }) {
+export function PartsGrid({ products, categories }: { products: ProductSummary[]; categories: string[] }) {
   const [category, setCategory] = useState("all");
   const filteredProducts = useMemo(() => {
     if (category === "all") return products;
@@ -24,26 +13,28 @@ export function PartsGrid({ products }: { products: ProductSummary[] }) {
 
   return (
     <div className="section-stack">
-      <div className="card filter-panel">
-        <div>
-          <p className="eyebrow">Filter Parts</p>
-          <h2>Browse parts by category.</h2>
+      {categories.length ? (
+        <div className="card filter-panel">
+          <div>
+            <p className="eyebrow">Categories</p>
+            <h2>Filter by parts in Supabase.</h2>
+          </div>
+          <div className="parts-category-filter" role="list" aria-label="Part categories">
+            <button className={category === "all" ? "active" : ""} type="button" onClick={() => setCategory("all")}>All</button>
+            {categories.map((option) => (
+              <button
+                className={category === option ? "active" : ""}
+                key={option}
+                type="button"
+                onClick={() => setCategory(option)}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+          <p className="muted">{filteredProducts.length} of {products.length} parts shown</p>
         </div>
-        <div className="parts-category-filter" role="list" aria-label="Part categories">
-          <button className={category === "all" ? "active" : ""} type="button" onClick={() => setCategory("all")}>All</button>
-          {categories.map((option) => (
-            <button
-              className={category === option ? "active" : ""}
-              key={option}
-              type="button"
-              onClick={() => setCategory(option)}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-        <p className="muted">{filteredProducts.length} of {products.length} parts shown</p>
-      </div>
+      ) : null}
 
       {filteredProducts.length ? (
         <div className="grid three">
@@ -51,8 +42,12 @@ export function PartsGrid({ products }: { products: ProductSummary[] }) {
             <article className="card part-card" key={product.id}>
               <Link className="part-card-image" href={`/parts/${product.slug}`}>
                 {product.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={product.imageUrl} alt={product.name} />
+                  <span className="part-image-frame">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img className="part-image-bg" src={product.imageUrl} alt="" aria-hidden="true" />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img className="part-image-main" src={product.imageUrl} alt={product.name} />
+                  </span>
                 ) : <span>{product.category}</span>}
               </Link>
               <div className="part-card-body">

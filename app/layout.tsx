@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { HeaderNav } from "@/components/HeaderNav";
+import { SiteVisitTracker } from "@/components/SiteVisitTracker";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -32,6 +34,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </footer>
         </div>
+        <Suspense fallback={null}>
+          <SiteVisitTracker />
+        </Suspense>
       </body>
     </html>
   );

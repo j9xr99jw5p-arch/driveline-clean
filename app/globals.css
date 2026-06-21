@@ -1083,12 +1083,6 @@ p {
   padding: 0 1rem 1rem;
 }
 
-.build-product-expanded .muted {
-  max-height: 180px;
-  overflow-y: auto;
-  white-space: pre-line;
-}
-
 .parts-category-filter {
   display: flex;
   flex-wrap: wrap;
@@ -1134,18 +1128,40 @@ p {
   text-transform: uppercase;
 }
 
-.part-card-image {
-  height: 220px;
-  border-bottom: 1px solid var(--border-color);
+.part-image-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0b0f17;
 }
 
-.part-card-image img,
-.part-detail-image img {
+.part-image-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(18px) brightness(0.55);
+  transform: scale(1.08);
+}
+
+.part-image-main {
+  position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
+  object-position: center;
   padding: 0.75rem;
+}
+
+.part-card-image {
+  height: 220px;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .part-card-body {
@@ -1183,15 +1199,15 @@ p {
   border-radius: 8px;
 }
 
+.part-detail-image .part-image-frame {
+  min-height: 420px;
+}
+
 .part-detail-price {
   margin: 0 0 1rem;
   color: var(--text-primary);
   font-size: 1.35rem;
   font-weight: 900;
-}
-
-.part-description {
-  white-space: pre-line;
 }
 
 .part-variant-panel {
@@ -1224,6 +1240,172 @@ p {
   gap: 0.25rem;
   color: var(--text-secondary);
   font-size: 0.92rem;
+}
+
+.expandable-text {
+  position: relative;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.expandable-text-content {
+  position: relative;
+}
+
+.expandable-text:not(.expanded) .expandable-text-content::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2.75rem;
+  pointer-events: none;
+  background: linear-gradient(rgba(5, 6, 8, 0), var(--bg-primary));
+}
+
+.card .expandable-text:not(.expanded) .expandable-text-content::after,
+.build-product-expanded .expandable-text:not(.expanded) .expandable-text-content::after {
+  background: linear-gradient(rgba(15, 18, 24, 0), var(--bg-secondary));
+}
+
+.expandable-text p {
+  margin: 0 0 0.85rem;
+  white-space: pre-line;
+}
+
+.expandable-text-toggle {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-blue-light);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.expandable-text-toggle:hover,
+.expandable-text-toggle:focus-visible {
+  color: var(--text-primary);
+  outline: none;
+}
+
+.admin-dashboard,
+.admin-panel,
+.admin-build-list,
+.admin-build-card,
+.admin-summary-panel,
+.summary-approval-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-actions {
+  justify-content: flex-start;
+  margin-top: 1rem;
+}
+
+.admin-compact-card,
+.admin-build-card,
+.admin-analytics {
+  padding: 1rem;
+}
+
+.admin-dashboard {
+  margin-top: 1.25rem;
+}
+
+.admin-panel-head,
+.admin-build-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.admin-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.admin-metric {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: rgba(42, 49, 64, 0.35);
+}
+
+.admin-metric span,
+.admin-mini-list span {
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+}
+
+.admin-mini-list small {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-metric strong {
+  color: var(--text-primary);
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.admin-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.admin-mini-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.admin-mini-list div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.admin-mini-list strong {
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.admin-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.6rem;
+}
+
+.admin-detail-grid {
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.admin-collapsible {
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.75rem;
+}
+
+.admin-collapsible summary {
+  color: var(--text-primary);
+  cursor: pointer;
+  font-weight: 850;
 }
 
 .admin-summary-panel,

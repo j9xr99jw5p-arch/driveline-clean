@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { BuildPhotoCarousel, type BuildPhoto } from "@/components/BuildPhotoCarousel";
+import { ExpandableText } from "@/components/ExpandableText";
 import { cleanJoin, formatBoolean, formatBuildTitle, formatSuspension, formatWheelTireCombo } from "@/lib/buildDisplay";
 import { getPublicSocialHandle, sanitizePublicBuildNotes } from "@/lib/buildPrivacy";
 import { getReviewedBuildSummary } from "@/lib/buildSummary";
@@ -225,7 +226,7 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
                 <div className="build-fact" key={label}><span>{label}</span><strong>{value || "Unknown"}</strong></div>
               ))}
             </div>
-            {publicNotes ? <p className="lead" style={{ marginTop: 20, whiteSpace: "pre-wrap" }}>{publicNotes}</p> : null}
+            {publicNotes ? <ExpandableText text={publicNotes} className="lead build-notes" /> : null}
           </div>
         </div>
       </section>

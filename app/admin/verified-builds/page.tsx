@@ -21,11 +21,29 @@ import {
 import { buildSummaryPrompt, createLocalBuildSummary } from "@/lib/buildSummary";
 import type { VerifiedBuild } from "@/lib/types";
 
+type SiteVisit = {
+  id: string;
+  path: string;
+  referrer: string | null;
+  user_agent: string | null;
+  user_id: string | null;
+  created_at: string;
+};
+
+type VisitAnalytics = {
+  total: number;
+  today: number;
+  week: number;
+  topPages: Array<{ path: string; count: number }>;
+  recent: SiteVisit[];
+};
+
 export default async function VerifiedBuildsAdminPage() {
   let signedIn = false;
   let adminEmailAllowed = false;
   let adminUnlocked = false;
   let builds: VerifiedBuild[] = [];
+  let analytics: VisitAnalytics | null = null;
   let loadError: string | null = null;
   let currentEmail: string | null = null;
 
@@ -51,6 +69,8 @@ export default async function VerifiedBuildsAdminPage() {
       } else {
         builds = (data ?? []) as VerifiedBuild[];
       }
+
+      analytics = await loadVisitAnalytics(admin);
     }
   }
 
@@ -63,7 +83,7 @@ export default async function VerifiedBuildsAdminPage() {
           <p className="lead">Review submitted Tacoma build data and approve it for the public verified builds page.</p>
         </div>
 
-        <div className="card admin-warning">
+        <div className="card admin-warning admin-compact-card">
           <h2>Admin access is restricted.</h2>
           <p className="muted">
             {adminUnlocked
@@ -72,7 +92,7 @@ export default async function VerifiedBuildsAdminPage() {
           </p>
         </div>
 
-        <div className="actions" style={{ justifyContent: "flex-start", marginTop: 24 }}>
+        <div className="actions admin-actions">
           <Link className="button primary" href="/submit-build">Use Submission Form</Link>
           <Link className="button" href="/builds">View Public Builds</Link>
         </div>
@@ -89,23 +109,144 @@ export default async function VerifiedBuildsAdminPage() {
           <AdminPasswordForm email={currentEmail ?? ""} />
         ) : loadError ? (
           <AdminMessage title="Review queue could not load." copy={loadError} />
-        ) : builds.length ? (
-          <div style={{ display: "grid", gap: 18, marginTop: 28 }}>
-            {builds.map((build) => (
-              <BuildReviewCard key={build.id} build={build} />
-            ))}
-          </div>
         ) : (
-          <AdminMessage title="No builds waiting for review." copy="New submissions will appear here before they are published." />
+          <div className="admin-dashboard">
+            <VisitAnalyticsPanel analytics={analytics} />
+            <section className="admin-panel">
+              <div className="admin-panel-head">
+                <div>
+                  <p className="eyebrow">Pending Builds</p>
+                  <h2>{builds.length} waiting for review</h2>
+                </div>
+              </div>
+              {builds.length ? (
+                <div className="admin-build-list">
+                  {builds.map((build) => (
+                    <BuildReviewCard key={build.id} build={build} />
+                  ))}
+                </div>
+              ) : (
+                <AdminMessage title="No builds waiting for review." copy="New submissions will appear here before they are published." />
+              )}
+            </section>
+          </div>
         )}
       </div>
     </section>
   );
 }
 
+async function loadVisitAnalytics(admin: ReturnType<typeof createSupabaseAdminClient>): Promise<VisitAnalytics | null> {
+  const since = new Date();
+  since.setDate(since.getDate() - 30);
+
+  const { data, error, count } = await admin
+    .from("site_visits")
+    .select("id, path, referrer, user_agent, user_id, created_at", { count: "exact" })
+    .gte("created_at", since.toISOString())
+    .order("created_at", { ascending: false })
+    .limit(250);
+
+  if (error) {
+    if (error.code !== "42P01" && error.code !== "42703") {
+      console.error("Failed to load site visit analytics:", error);
+    }
+    return null;
+  }
+
+  const visits = (data ?? []) as SiteVisit[];
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfWeek = new Date(startOfToday);
+  startOfWeek.setDate(startOfToday.getDate() - 6);
+  const topPages = Array.from(visits.reduce((map, visit) => {
+    map.set(visit.path, (map.get(visit.path) ?? 0) + 1);
+    return map;
+  }, new Map<string, number>()))
+    .map(([path, pageCount]) => ({ path, count: pageCount }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+
+  return {
+    total: count ?? visits.length,
+    today: visits.filter((visit) => new Date(visit.created_at) >= startOfToday).length,
+    week: visits.filter((visit) => new Date(visit.created_at) >= startOfWeek).length,
+    topPages,
+    recent: visits.slice(0, 8)
+  };
+}
+
+function VisitAnalyticsPanel({ analytics }: { analytics: VisitAnalytics | null }) {
+  if (!analytics) {
+    return (
+      <section className="card admin-analytics admin-compact-card">
+        <p className="eyebrow">Visitor Tracking</p>
+        <h2>Analytics unavailable</h2>
+        <p className="muted">Run the `013_site_visits.sql` migration to enable compact visit analytics.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="card admin-analytics">
+      <div className="admin-panel-head">
+        <div>
+          <p className="eyebrow">Visitor Tracking</p>
+          <h2>Site activity</h2>
+        </div>
+      </div>
+      <div className="admin-metric-grid">
+        <Metric label="Today" value={analytics.today} />
+        <Metric label="This week" value={analytics.week} />
+        <Metric label="30-day total" value={analytics.total} />
+      </div>
+      <div className="admin-analytics-grid">
+        <div>
+          <h3>Top pages</h3>
+          <div className="admin-mini-list">
+            {analytics.topPages.length ? analytics.topPages.map((page) => (
+              <div key={page.path}><span>{page.path}</span><strong>{page.count}</strong></div>
+            )) : <p className="muted">No page visits yet.</p>}
+          </div>
+        </div>
+        <div>
+          <h3>Recent visits</h3>
+          <div className="admin-mini-list">
+            {analytics.recent.length ? analytics.recent.map((visit) => (
+              <div key={visit.id}>
+                <span>
+                  {visit.path}
+                  <small>{[visit.referrer ? `from ${visit.referrer}` : null, visit.user_id ? "logged in" : "anonymous", shortUserAgent(visit.user_agent)].filter(Boolean).join(" · ")}</small>
+                </span>
+                <strong>{new Date(visit.created_at).toLocaleString()}</strong>
+              </div>
+            )) : <p className="muted">No recent visits yet.</p>}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="admin-metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function shortUserAgent(userAgent: string | null) {
+  if (!userAgent) return null;
+  if (/mobile|iphone|android/i.test(userAgent)) return "mobile";
+  if (/ipad|tablet/i.test(userAgent)) return "tablet";
+  return "desktop";
+}
+
 function AdminPasswordForm({ email }: { email: string }) {
   return (
-    <form className="card form" action={unlockAdmin} style={{ marginTop: 28 }}>
+    <form className="card form admin-compact-card" action={unlockAdmin} style={{ marginTop: 28 }}>
       <div>
         <h2>Unlock admin tools</h2>
         <p className="muted">Enter the admin password for {email}.</p>
@@ -124,8 +265,8 @@ function BuildReviewCard({ build }: { build: VerifiedBuild }) {
   const draftSummary = build.build_summary?.trim() || createLocalBuildSummary(build);
 
   return (
-    <article className="card" style={{ display: "grid", gap: 18 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+    <article className="card admin-build-card">
+      <div className="admin-build-head">
         <div>
           <span className={`pill ${build.fitment_risk}`}>{build.fitment_risk} risk</span>
           <h2 style={{ marginTop: 10 }}>{formatBuildTitle(build)}</h2>
@@ -134,7 +275,7 @@ function BuildReviewCard({ build }: { build: VerifiedBuild }) {
       </div>
 
       {photos.length ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+        <div className="admin-photo-grid">
           {photos.map((photo) => (
             <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer" className="build-media" style={{ minHeight: 150 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -146,18 +287,21 @@ function BuildReviewCard({ build }: { build: VerifiedBuild }) {
         <p className="muted">No submitted photos attached.</p>
       )}
 
-      <div className="detail-grid">
-        <div className="detail-field"><span>Wheel / Tire</span><strong>{formatWheelTireCombo(build)}</strong></div>
-        <div className="detail-field"><span>Suspension</span><strong>{formatSuspension(build)}</strong></div>
-        <div className="detail-field"><span>Fitment</span><strong>{formatPrimaryFitmentDetails(build)}</strong></div>
-        <div className="detail-field"><span>Clearance</span><strong>{formatSecondaryFitmentDetails(build)}</strong></div>
-      </div>
+      <details className="admin-collapsible" open>
+        <summary>Raw build data</summary>
+        <div className="detail-grid admin-detail-grid">
+          <div className="detail-field"><span>Wheel / Tire</span><strong>{formatWheelTireCombo(build)}</strong></div>
+          <div className="detail-field"><span>Suspension</span><strong>{formatSuspension(build)}</strong></div>
+          <div className="detail-field"><span>Fitment</span><strong>{formatPrimaryFitmentDetails(build)}</strong></div>
+          <div className="detail-field"><span>Clearance</span><strong>{formatSecondaryFitmentDetails(build)}</strong></div>
+        </div>
+      </details>
 
       {build.notes ? (
-        <div className="detail-field">
-          <span>Submission notes</span>
-          <strong style={{ whiteSpace: "pre-wrap" }}>{build.notes}</strong>
-        </div>
+        <details className="admin-collapsible">
+          <summary>Submission notes</summary>
+          <p className="muted" style={{ whiteSpace: "pre-wrap" }}>{build.notes}</p>
+        </details>
       ) : null}
 
       {build.source_url ? (

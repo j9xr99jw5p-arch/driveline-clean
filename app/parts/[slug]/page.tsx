@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BuildCard } from "@/components/BuildCard";
+import { ExpandableText } from "@/components/ExpandableText";
 import { formatCents, mapVariant, type ProductVariantRow } from "@/lib/products";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { VerifiedBuild } from "@/lib/types";
@@ -134,15 +135,19 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
         <div className="section part-detail-layout">
           <div className="part-detail-image">
             {product.image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={product.image_url} alt={product.name} />
+              <span className="part-image-frame">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img className="part-image-bg" src={product.image_url} alt="" aria-hidden="true" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img className="part-image-main" src={product.image_url} alt={product.name} />
+              </span>
             ) : <span>{product.category}</span>}
           </div>
           <div className="part-detail-content">
             <p className="eyebrow">{[product.brand, product.category].filter(Boolean).join(" / ")}</p>
             <h1>{product.name}</h1>
             {priceLabel ? <p className="part-detail-price">{priceLabel}</p> : null}
-            {product.description ? <p className="lead part-description">{product.description}</p> : null}
+            {product.description ? <ExpandableText text={product.description} className="lead part-description" /> : null}
             <div className="actions" style={{ justifyContent: "flex-start" }}>
               {product.affiliate_url ? (
                 <Link className="button primary" href={product.affiliate_url} target="_blank" rel="noreferrer">Buy this part</Link>

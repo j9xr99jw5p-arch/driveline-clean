@@ -110,6 +110,8 @@ export default async function PartsPage() {
       variants
     };
   });
+  const categories = Array.from(new Set(products.map((product) => product.category?.trim()).filter((value): value is string => Boolean(value))))
+    .sort((a, b) => a.localeCompare(b));
 
   return (
     <section className="band">
@@ -119,7 +121,7 @@ export default async function PartsPage() {
           <h1>Browse Parts</h1>
           <p className="lead">Find parts used on verified Tacoma builds, then open each part to see the builds running it.</p>
         </div>
-        <PartsGrid products={products} />
+        <PartsGrid products={products} categories={categories} />
       </div>
     </section>
   );

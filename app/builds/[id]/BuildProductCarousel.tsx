@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { ExpandableText } from "@/components/ExpandableText";
 import { ProductCheckoutButton } from "./ProductCheckoutButton";
 
 export type BuildProductCardData = {
@@ -103,8 +104,12 @@ function BuildProductCard({
       >
         <div className="build-product-image">
           {imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={imageUrl} alt={product.name} />
+            <span className="part-image-frame">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="part-image-bg" src={imageUrl} alt="" aria-hidden="true" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="part-image-main" src={imageUrl} alt={product.name} />
+            </span>
           ) : (
             <span>{product.category}</span>
           )}
@@ -119,7 +124,7 @@ function BuildProductCard({
 
       {isExpanded ? (
         <div className="build-product-expanded">
-          {product.description ? <p className="muted">{product.description}</p> : null}
+          {product.description ? <ExpandableText text={product.description} className="muted" /> : null}
           {product.linkedVariantLabel || product.linkNotes ? (
             <p className="fine">
               {[product.linkedVariantLabel, product.linkNotes].filter(Boolean).join(" · ")}
