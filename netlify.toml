@@ -4,3 +4,15 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+[[redirects]]
+  from = "https://driveline1.netlify.app/*"
+  to = "https://tacomaverifier.net/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://*.netlify.app/*"
+  to = "https://tacomaverifier.net/:splat"
+  status = 301
+  force = true

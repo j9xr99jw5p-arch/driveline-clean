@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, ShieldCheck } from "lucide-react";
+import { formatBuildTitle } from "@/lib/buildDisplay";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { VerifiedBuild } from "@/lib/types";
 
-export default function HomePage() {
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const featuredBuild = await getFeaturedBuildOfTheDay();
+  const featuredPhoto = featuredBuild?.verified_build_photos?.[0] ?? null;
+
   return (
     <>
       <section className="hero">
@@ -16,13 +24,26 @@ export default function HomePage() {
             </div>
           </div>
           <div className="hero-visual">
-            <div className="spec-panel" style={{ width: "min(440px, 100%)" }}>
-              <p className="eyebrow">Example Report</p>
-              <div className="spec-row"><span className="muted">Setup</span><strong>285/70R17, -12 offset</strong></div>
-              <div className="spec-row"><span className="muted">Lift</span><strong>2.5 in</strong></div>
-              <div className="spec-row"><span className="muted">Rubbing risk</span><strong>Medium</strong></div>
-              <div className="spec-row"><span className="muted">Likely work</span><strong>Liner movement, minor trim</strong></div>
-            </div>
+            {featuredBuild && featuredPhoto ? (
+              <article className="featured-build-card">
+                <div className="featured-build-image">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={featuredPhoto.url} alt={featuredPhoto.alt_text ?? formatBuildTitle(featuredBuild)} />
+                </div>
+                <div className="featured-build-copy">
+                  <p className="eyebrow">Featured Build of the Day</p>
+                  <h2>{formatBuildTitle(featuredBuild)}</h2>
+                  <Link className="button primary full" href={`/builds/${featuredBuild.id}`}>View Full Build</Link>
+                </div>
+              </article>
+            ) : (
+              <div className="spec-panel" style={{ width: "min(440px, 100%)" }}>
+                <p className="eyebrow">Featured Build of the Day</p>
+                <h2>Verified builds are loading in.</h2>
+                <p className="muted">Once published builds with photos are available, this space will rotate through one build each day.</p>
+                <Link className="button primary full" href="/builds">Browse Verified Builds</Link>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -35,4 +56,35 @@ export default function HomePage() {
       </section>
     </>
   );
+}
+
+async function getFeaturedBuildOfTheDay() {
+  try {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("verified_builds")
+      .select("*, verified_build_photos(*)")
+      .eq("published", true)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("Homepage featured build query failed:", error);
+      return null;
+    }
+
+    const buildsWithPhotos = ((data ?? []) as VerifiedBuild[])
+      .map((build) => ({
+        ...build,
+        verified_build_photos: [...(build.verified_build_photos ?? [])].sort((a, b) => a.sort_order - b.sort_order)
+      }))
+      .filter((build) => (build.verified_build_photos ?? []).length > 0);
+
+    if (!buildsWithPhotos.length) return null;
+
+    const dayIndex = Math.floor(Date.now() / 86_400_000);
+    return buildsWithPhotos[dayIndex % buildsWithPhotos.length];
+  } catch (error) {
+    console.error("Homepage featured build failed:", error);
+    return null;
+  }
 }

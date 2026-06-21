@@ -1,5 +1,6 @@
 export const planLimits = {
   free: { fitment_check_limit: 3 },
+  paid: { fitment_check_limit: 999999 },
   builder: { fitment_check_limit: 999999 }
 } as const;
 

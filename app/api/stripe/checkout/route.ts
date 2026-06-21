@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import type Stripe from "stripe";
 import { z } from "zod";
+import { findOrCreateStripeCustomerForUser, paidPlanKey } from "@/lib/billing";
 import { getStripe } from "@/lib/stripe";
 import { getCurrentSupabaseUser } from "@/lib/supabase/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -32,33 +32,47 @@ export async function POST(request: Request) {
     console.error("Checkout user lookup failed", error);
   }
 
-  const submittedEmail = parsed.data.email ? parsed.data.email.toLowerCase() : null;
-  const checkoutEmail = currentUser?.user.email?.toLowerCase() ?? submittedEmail;
+  if (!currentUser) {
+    return NextResponse.json(
+      {
+        error: "Please sign in before upgrading.",
+        redirectUrl: "/account?auth=required"
+      },
+      { status: 401 }
+    );
+  }
+
+  const checkoutEmail = currentUser.user.email?.toLowerCase() ?? parsed.data.email?.toLowerCase();
   if (!checkoutEmail) {
-    return NextResponse.json({ error: "Please enter an email address to continue." }, { status: 400 });
+    return NextResponse.json({ error: "Your account needs an email address before checkout can start." }, { status: 400 });
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   const stripe = getStripe();
   const admin = createSupabaseAdminClient();
   const metadata: Record<string, string> = {
-    plan: parsed.data.plan,
+    supabase_user_id: currentUser.userId,
+    user_id: currentUser.userId,
+    plan: paidPlanKey,
     email: checkoutEmail
   };
 
-  let customerId: string | null = null;
-  if (currentUser) {
-    metadata.user_id = currentUser.userId;
-    customerId = await findOrCreateStripeCustomer(stripe, admin, currentUser.userId, checkoutEmail);
-  }
+  console.log("Stripe checkout user id:", currentUser.userId);
+  const customerId = await findOrCreateStripeCustomerForUser({
+    stripe,
+    supabase: admin,
+    userId: currentUser.userId,
+    email: checkoutEmail
+  });
+  console.log("Stripe checkout customer id:", customerId);
 
   try {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      ...(customerId ? { customer: customerId } : { customer_email: checkoutEmail }),
-      ...(customerId ? { customer_update: { name: "auto", address: "auto" } } : {}),
+      customer: customerId,
+      customer_update: { name: "auto", address: "auto" },
       allow_promotion_codes: true,
-      client_reference_id: currentUser?.userId,
+      client_reference_id: currentUser.userId,
       line_items: [{ price, quantity: 1 }],
       success_url: `${siteUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${siteUrl}/cancel`,
@@ -71,74 +85,4 @@ export async function POST(request: Request) {
     console.error("Stripe checkout session creation failed", error);
     return NextResponse.json({ error: friendlyCheckoutError }, { status: 500 });
   }
-}
-
-async function findOrCreateStripeCustomer(
-  stripe: Stripe,
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
-  userId: string,
-  email: string
-) {
-  const customerFromMapping = await getMappedStripeCustomerId(supabase, userId);
-  if (customerFromMapping) return customerFromMapping;
-
-  const customerFromUsersTable = await getUsersTableStripeCustomerId(supabase, userId);
-  if (customerFromUsersTable) {
-    await saveStripeCustomerMapping(supabase, userId, customerFromUsersTable);
-    return customerFromUsersTable;
-  }
-
-  const matchingCustomers = await stripe.customers.list({ email, limit: 1 });
-  const customer = matchingCustomers.data[0] ?? await stripe.customers.create({
-    email,
-    metadata: { user_id: userId }
-  });
-
-  await saveStripeCustomerMapping(supabase, userId, customer.id);
-  await saveUsersTableStripeCustomerId(supabase, userId, customer.id);
-
-  return customer.id;
-}
-
-async function getMappedStripeCustomerId(supabase: ReturnType<typeof createSupabaseAdminClient>, userId: string) {
-  const { data, error } = await supabase
-    .from("stripe_customers")
-    .select("stripe_customer_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) console.error("Stripe customer lookup failed", error);
-  return data?.stripe_customer_id as string | undefined;
-}
-
-async function getUsersTableStripeCustomerId(supabase: ReturnType<typeof createSupabaseAdminClient>, userId: string) {
-  const { data, error } = await supabase
-    .from("users")
-    .select("stripe_customer_id")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error) {
-    console.error("Optional users.stripe_customer_id lookup failed", error);
-    return undefined;
-  }
-
-  return data?.stripe_customer_id as string | undefined;
-}
-
-async function saveStripeCustomerMapping(supabase: ReturnType<typeof createSupabaseAdminClient>, userId: string, customerId: string) {
-  const { error } = await supabase.from("stripe_customers").upsert(
-    { user_id: userId, stripe_customer_id: customerId },
-    { onConflict: "user_id" }
-  );
-
-  if (error) console.error("Stripe customer mapping upsert failed", error);
-}
-
-async function saveUsersTableStripeCustomerId(supabase: ReturnType<typeof createSupabaseAdminClient>, userId: string, customerId: string) {
-  const { error } = await supabase
-    .from("users")
-    .upsert({ id: userId, stripe_customer_id: customerId, updated_at: new Date().toISOString() }, { onConflict: "id" });
-
-  if (error) console.error("Optional users.stripe_customer_id save failed", error);
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { HeaderNav } from "@/components/HeaderNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,13 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <span className="brand-tagline">Trust. Accuracy. Fitment.</span>
                 </span>
               </Link>
-              <nav className="nav-links" aria-label="Primary">
-                <Link href="/check">Check</Link>
-                <Link href="/builds">Builds</Link>
-                <Link href="/submit-build">Submit</Link>
-                <Link href="/pricing">Pricing</Link>
-                <Link href="/account">Account</Link>
-              </nav>
+              <HeaderNav />
             </div>
           </header>
           <main className="main">{children}</main>

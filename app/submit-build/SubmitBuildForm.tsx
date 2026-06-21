@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 const friendlyErrorMessage =
   "We’re having trouble submitting your build right now. We’re working to fix it as quickly as possible. Please try again in a moment.";
@@ -13,12 +14,13 @@ const beds = ["", "5 foot", "6 foot", "Short bed", "Long bed", "Other"];
 const rubbingOptions = ["", "None", "Minor", "Moderate", "Severe", "Unknown"];
 const yesNoUnknownOptions = ["", "Unknown", "Yes", "No"];
 const riskOptions = ["Unknown", "Low", "Medium", "High"];
+const buildPhotosBucket = process.env.NEXT_PUBLIC_SUPABASE_BUILD_PHOTOS_BUCKET || "verified-build-photos";
 
 type RequiredState = {
   year: string;
   make: string;
   model: string;
-  ownerName: string;
+  socialHandle: string;
   tireSize: string;
   wheelSize: string;
   liftHeight: string;
@@ -32,7 +34,7 @@ const initialRequiredState: RequiredState = {
   year: "2024",
   make: "Toyota",
   model: "Tacoma",
-  ownerName: "",
+  socialHandle: "",
   tireSize: "",
   wheelSize: "",
   liftHeight: "",
@@ -53,7 +55,7 @@ export function SubmitBuildForm() {
       requiredState.year.trim() &&
       requiredState.make.trim() &&
       requiredState.model.trim() &&
-      requiredState.ownerName.trim() &&
+      requiredState.socialHandle.trim() &&
       requiredState.tireSize.trim() &&
       requiredState.wheelSize.trim() &&
       (requiredState.suspensionSetup.trim() || requiredState.liftHeight.trim()) &&
@@ -68,7 +70,7 @@ export function SubmitBuildForm() {
     const form = event.currentTarget;
 
     if (!canSubmit) {
-      setStatus("Please complete the required vehicle, fitment, clearance, and owner fields.");
+      setStatus("Please complete the required vehicle, fitment, clearance, and social handle fields.");
       return;
     }
 
@@ -76,13 +78,19 @@ export function SubmitBuildForm() {
     setStatus(null);
 
     try {
+      const submitData = new FormData(form);
+      const files = submitData
+        .getAll("attachment")
+        .filter((value): value is File => value instanceof File && value.size > 0);
+      submitData.delete("attachment");
+
       const response = await fetch("/api/submit-build", {
         method: "POST",
-        body: new FormData(form)
+        body: submitData
       });
 
       const text = await response.text();
-      let payload: { error?: string; message?: string; raw?: string } | null;
+      let payload: { ok?: boolean; id?: string; error?: string; message?: string; raw?: string } | null;
       try {
         payload = text ? JSON.parse(text) : null;
       } catch {
@@ -98,6 +106,10 @@ export function SubmitBuildForm() {
         throw new Error(response.status >= 500 ? friendlyErrorMessage : payload?.error || payload?.message || "Build submission failed");
       }
 
+      if (payload?.id && files.length > 0) {
+        await uploadBuildFiles(payload.id, files);
+      }
+
       router.push("/submit-build/thank-you");
     } catch (error) {
       console.error("Build submission request failed", error);
@@ -107,18 +119,120 @@ export function SubmitBuildForm() {
     }
   }
 
+  async function uploadBuildFiles(buildId: string, files: File[]) {
+    const prepareResponse = await fetch("/api/submit-build/photo-uploads", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        buildId,
+        files: files.map((file) => ({
+          name: file.name,
+          type: file.type,
+          size: file.size
+        }))
+      })
+    });
+
+    const prepareText = await prepareResponse.text();
+    let preparePayload: {
+      uploads?: Array<{
+        path: string;
+        token: string;
+        publicUrl: string;
+        altText: string;
+        sortOrder: number;
+      }>;
+      error?: string;
+      details?: string;
+      raw?: string;
+    } | null;
+
+    try {
+      preparePayload = prepareText ? JSON.parse(prepareText) : null;
+    } catch {
+      preparePayload = { raw: prepareText };
+    }
+
+    if (!prepareResponse.ok || !preparePayload?.uploads) {
+      console.error("Build photo upload preparation failed", {
+        status: prepareResponse.status,
+        statusText: prepareResponse.statusText,
+        response: preparePayload
+      });
+      throw new Error("Build submitted, but file upload setup failed.");
+    }
+
+    const supabase = createSupabaseBrowserClient();
+    const completedPhotos = [];
+
+    for (const [index, upload] of preparePayload.uploads.entries()) {
+      const file = files[index];
+      if (!file) continue;
+
+      const { error } = await supabase.storage
+        .from(buildPhotosBucket)
+        .uploadToSignedUrl(upload.path, upload.token, file);
+
+      if (error) {
+        console.error("Build photo upload failed", {
+          file: file.name,
+          path: upload.path,
+          error
+        });
+        throw new Error("Build submitted, but one or more files could not be uploaded.");
+      }
+
+      completedPhotos.push({
+        buildId,
+        url: upload.publicUrl,
+        altText: upload.altText,
+        sortOrder: upload.sortOrder
+      });
+    }
+
+    const completeResponse = await fetch("/api/submit-build/photo-uploads", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        action: "complete",
+        photos: completedPhotos
+      })
+    });
+
+    const completeText = await completeResponse.text();
+    let completePayload: { error?: string; details?: string; raw?: string } | null;
+
+    try {
+      completePayload = completeText ? JSON.parse(completeText) : null;
+    } catch {
+      completePayload = { raw: completeText };
+    }
+
+    if (!completeResponse.ok) {
+      console.error("Build photo row insert failed", {
+        status: completeResponse.status,
+        statusText: completeResponse.statusText,
+        response: completePayload
+      });
+      throw new Error("Build submitted, but the uploaded files could not be attached.");
+    }
+  }
+
   function updateRequiredField(field: keyof RequiredState) {
     return (value: string) => setRequiredState((current) => ({ ...current, [field]: value }));
   }
 
   return (
     <form className="card form" onSubmit={onSubmit} encType="multipart/form-data">
-      <FormSection title="Contact Info" copy="Tell us who submitted the build. Contact email is helpful, but only your name is required.">
+      <FormSection title="Contact Info" copy="Tell us who submitted the build. Public build pages only show your social handle. Contact email is optional and stays private.">
         <div className="grid two">
-          <Field name="ownerName" label="Owner or submitter name" placeholder="Your name" value={requiredState.ownerName} onValueChange={updateRequiredField("ownerName")} required />
+          <Field name="socialHandle" label="Instagram/social handle" placeholder="@username" value={requiredState.socialHandle} onValueChange={updateRequiredField("socialHandle")} required />
           <Field name="contactEmail" label="Contact email, optional" placeholder="you@example.com" type="email" required={false} />
         </div>
-        <Field name="socialHandle" label="Instagram/social handle, if known" placeholder="@username" required={false} />
       </FormSection>
 
       <FormSection title="Vehicle Info">
@@ -186,8 +300,8 @@ export function SubmitBuildForm() {
       <FormSection title="Upload File" copy="Photos, screenshots, and spec sheets are helpful if you have them.">
         <label className="field">
           <span>Photo or file attachment, optional</span>
-          <input name="attachment" type="file" accept="image/*,.pdf,.txt,.doc,.docx" />
-          <small className="fine">Attach a screenshot, notes file, spec sheet, or photo if you have one.</small>
+          <input name="attachment" type="file" accept="image/*,.pdf,.txt,.doc,.docx" multiple />
+          <small className="fine">Attach screenshots, notes files, spec sheets, or photos if you have them.</small>
         </label>
       </FormSection>
 

@@ -116,7 +116,6 @@ export async function POST(request: Request) {
     const data = parsed.data;
     const notes = [
       data.notes,
-      data.owner_email ? `Owner email: ${data.owner_email}` : null,
       data.photo_url ? `Photo URL: ${data.photo_url}` : null,
       data.tire_brand ? `Tire brand: ${data.tire_brand}` : null,
       data.tire_model ? `Tire model: ${data.tire_model}` : null,
@@ -145,7 +144,7 @@ export async function POST(request: Request) {
       body_mount_chop: data.body_mount_chop,
       fitment_risk: data.fitment_risk,
       notes,
-      owner_name: data.owner_name,
+      owner_name: data.owner_name?.startsWith("@") ? data.owner_name : "Anonymous",
       source_url: data.source_url,
       published: false
     };

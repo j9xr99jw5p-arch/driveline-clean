@@ -12,34 +12,32 @@ export function CheckoutButton({ plan }: { plan: "builder" }) {
 
   async function checkout() {
     const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail) {
-      setError("Please enter your email address to continue.");
-      return;
-    }
 
     setLoading(true);
     setError(null);
 
-    try {
-      const captureResponse = await fetch("/api/email-capture", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail, source: "pricing", plan })
-      });
+    if (normalizedEmail) {
+      try {
+        const captureResponse = await fetch("/api/email-capture", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email: normalizedEmail, source: "pricing", plan })
+        });
 
-      if (!captureResponse.ok) {
-        const payload = await captureResponse.json().catch((error) => {
-          console.error("Email capture error response could not be read", error);
-          return {};
-        });
-        console.error("Email capture failed before checkout", {
-          status: captureResponse.status,
-          statusText: captureResponse.statusText,
-          payload
-        });
+        if (!captureResponse.ok) {
+          const payload = await captureResponse.json().catch((error) => {
+            console.error("Email capture error response could not be read", error);
+            return {};
+          });
+          console.error("Email capture failed before checkout", {
+            status: captureResponse.status,
+            statusText: captureResponse.statusText,
+            payload
+          });
+        }
+      } catch (error) {
+        console.error("Email capture request failed before checkout", error);
       }
-    } catch (error) {
-      console.error("Email capture request failed before checkout", error);
     }
 
     try {
@@ -54,6 +52,10 @@ export function CheckoutButton({ plan }: { plan: "builder" }) {
       });
       if (payload.url) {
         window.location.href = payload.url;
+        return;
+      }
+      if (payload.redirectUrl) {
+        window.location.href = payload.redirectUrl;
         return;
       }
       console.error("Checkout request failed", payload);
@@ -76,7 +78,6 @@ export function CheckoutButton({ plan }: { plan: "builder" }) {
           onChange={(event) => setEmail(event.target.value)}
           placeholder="you@example.com"
           autoComplete="email"
-          required
         />
       </label>
       <button className="button primary full" type="button" disabled={loading} onClick={checkout}>

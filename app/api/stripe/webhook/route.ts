@@ -1,18 +1,21 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
-import { planLimits } from "@/lib/plans";
-import { isSupabaseAuthUserId } from "@/lib/supabase/auth";
+import {
+  freePlanKey,
+  normalizeStripeCustomerId,
+  normalizeSupabaseUserId,
+  paidPlanKey,
+  planFromSubscriptionStatus,
+  saveStripeCustomerMapping,
+  saveUsersTableStripeCustomerId,
+  upsertUserPlanForSubscription
+} from "@/lib/billing";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
 
-function stripeCustomerId(customer: string | Stripe.Customer | Stripe.DeletedCustomer | null): string | null {
-  if (!customer) return null;
-  return typeof customer === "string" ? customer : customer.id;
-}
-
-function metadataUserId(value: string | null | undefined): string | null {
-  return isSupabaseAuthUserId(value) ? value : null;
+function devLog(message: string, details?: unknown) {
+  if (process.env.NODE_ENV !== "production") console.log(message, details ?? "");
 }
 
 export async function POST(request: Request) {
@@ -32,21 +35,39 @@ export async function POST(request: Request) {
   const supabase = createSupabaseAdminClient();
 
   try {
+    console.log("Stripe webhook event type:", event.type);
+
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        const userId = metadataUserId(session.client_reference_id) ?? metadataUserId(session.metadata?.user_id);
-        const customerId = stripeCustomerId(session.customer);
 
-        if (userId && customerId) {
-          await saveStripeCustomerMapping(userId, customerId);
+        if (session.mode === "payment") {
+          await syncProductOrder(session);
+          break;
         }
+
+        const customerId = normalizeStripeCustomerId(session.customer);
+        let subscription: Stripe.Subscription | null = null;
 
         if (session.mode === "subscription" && session.subscription) {
           const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
-          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          await syncSubscription(subscription, userId);
+          subscription = await stripe.subscriptions.retrieve(subscriptionId);
         }
+
+        const userId = await resolveSupabaseUserId({
+          session,
+          subscription,
+          customerId
+        });
+
+        console.log("Stripe webhook resolved supabase_user_id:", userId);
+
+        if (userId && customerId) {
+          await saveStripeCustomerMapping(supabase, userId, customerId, session.customer_details?.email ?? null);
+          await saveUsersTableStripeCustomerId(supabase, userId, customerId);
+        }
+
+        if (subscription) await syncSubscription(subscription, userId);
         break;
       }
       case "customer.subscription.created":
@@ -74,35 +95,44 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ received: true });
 
-  async function saveStripeCustomerMapping(userId: string, customerId: string) {
-    const { error: customerError } = await supabase.from("stripe_customers").upsert(
-      { user_id: userId, stripe_customer_id: customerId },
-      { onConflict: "user_id" }
-    );
-    if (customerError) console.error("Stripe customer mapping upsert failed", customerError);
+  async function resolveSupabaseUserId({
+    session,
+    subscription,
+    customerId
+  }: {
+    session?: Stripe.Checkout.Session;
+    subscription?: Stripe.Subscription | null;
+    customerId?: string | null;
+  }) {
+    const metadataUserId =
+      normalizeSupabaseUserId(session?.metadata?.supabase_user_id) ??
+      normalizeSupabaseUserId(session?.metadata?.user_id) ??
+      normalizeSupabaseUserId(session?.client_reference_id) ??
+      normalizeSupabaseUserId(subscription?.metadata.supabase_user_id) ??
+      normalizeSupabaseUserId(subscription?.metadata.user_id);
 
-    const { error: usersError } = await supabase
-      .from("users")
-      .upsert({ id: userId, stripe_customer_id: customerId, updated_at: new Date().toISOString() }, { onConflict: "id" });
-    if (usersError) console.error("Optional users.stripe_customer_id save failed", usersError);
+    if (metadataUserId) return metadataUserId;
+
+    if (!customerId) return null;
+
+    const { data: customer, error } = await supabase
+      .from("stripe_customers")
+      .select("user_id")
+      .eq("stripe_customer_id", customerId)
+      .maybeSingle();
+
+    if (error) console.error("Stripe customer user lookup failed", error);
+    return normalizeSupabaseUserId(customer?.user_id);
   }
 
   async function syncSubscription(subscription: Stripe.Subscription, fallbackUserId?: string | null) {
-    const customerId = stripeCustomerId(subscription.customer);
-    let userId = metadataUserId(subscription.metadata.user_id) ?? metadataUserId(fallbackUserId);
+    const customerId = normalizeStripeCustomerId(subscription.customer);
+    const userId = await resolveSupabaseUserId({
+      subscription,
+      customerId
+    }) ?? normalizeSupabaseUserId(fallbackUserId);
 
-    if (!userId && customerId) {
-      const { data: customer } = await supabase
-        .from("stripe_customers")
-        .select("user_id")
-        .eq("stripe_customer_id", customerId)
-        .maybeSingle();
-      userId = metadataUserId(customer?.user_id);
-    }
-
-    const rawPlan = subscription.metadata.plan;
-    const plan = rawPlan === "builder" ? "builder" : "free";
-    const activePlan = subscription.status === "active" || subscription.status === "trialing" ? plan : "free";
+    console.log("Stripe webhook resolved supabase_user_id:", userId);
 
     if (!userId || !customerId) {
       console.error("Stripe subscription sync skipped; missing user or customer", {
@@ -113,7 +143,8 @@ export async function POST(request: Request) {
       return;
     }
 
-    await saveStripeCustomerMapping(userId, customerId);
+    await saveStripeCustomerMapping(supabase, userId, customerId);
+    await saveUsersTableStripeCustomerId(supabase, userId, customerId);
 
     const currentPeriodStart = subscription.current_period_start
       ? new Date(subscription.current_period_start * 1000).toISOString()
@@ -127,20 +158,80 @@ export async function POST(request: Request) {
       stripe_subscription_id: subscription.id,
       stripe_customer_id: customerId,
       status: subscription.status,
-      plan,
+      plan: paidPlanKey,
       current_period_start: currentPeriodStart,
       current_period_end: currentPeriodEnd,
       cancel_at_period_end: subscription.cancel_at_period_end,
       canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null
     }, { onConflict: "stripe_subscription_id" });
 
-    await supabase.from("user_plans").upsert({
-      user_id: userId,
-      plan: activePlan,
-      status: subscription.status,
-      fitment_check_limit: planLimits[activePlan].fitment_check_limit,
-      current_period_start: currentPeriodStart,
-      current_period_end: currentPeriodEnd
-    }, { onConflict: "user_id" });
+    const activePlan = planFromSubscriptionStatus(subscription.status);
+    const planStatus = event.type === "customer.subscription.deleted" ? "inactive" : subscription.status;
+
+    await upsertUserPlanForSubscription({
+      supabase,
+      userId,
+      plan: activePlan === paidPlanKey ? paidPlanKey : freePlanKey,
+      status: planStatus,
+      stripeCustomerId: customerId,
+      stripeSubscriptionId: subscription.id,
+      currentPeriodStart,
+      currentPeriodEnd
+    });
   }
+
+  async function syncProductOrder(session: Stripe.Checkout.Session) {
+    devLog("Stripe webhook payment mode:", session.mode);
+
+    const productId = session.metadata?.product_id ?? null;
+    const variantId = session.metadata?.variant_id ?? null;
+    const buildId = session.metadata?.build_id || null;
+    const paymentIntentId = normalizePaymentIntentId(session.payment_intent);
+    const customerId = normalizeStripeCustomerId(session.customer);
+    const shippingDetails = getSessionShippingDetails(session);
+
+    const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 });
+    const quantity = lineItems.data[0]?.quantity ?? 1;
+
+    devLog("Stripe product purchase:", {
+      productId,
+      variantId,
+      buildId,
+      stripeCustomerId: customerId,
+      stripePaymentIntentId: paymentIntentId,
+      amountTotal: session.amount_total
+    });
+
+    const { data, error } = await supabase
+      .from("orders")
+      .upsert({
+        stripe_checkout_session_id: session.id,
+        stripe_payment_intent_id: paymentIntentId,
+        stripe_customer_id: customerId,
+        product_id: productId,
+        variant_id: variantId,
+        build_id: buildId,
+        quantity,
+        amount_total: session.amount_total,
+        currency: session.currency,
+        status: session.payment_status,
+        customer_email: session.customer_details?.email ?? null,
+        shipping_name: shippingDetails?.name ?? null,
+        shipping_address: shippingDetails?.address ?? null
+      }, { onConflict: "stripe_checkout_session_id" })
+      .select("id")
+      .maybeSingle();
+
+    devLog("Product order insert result:", { data, error });
+    if (error) console.error("Product order upsert failed", error);
+  }
+}
+
+function normalizePaymentIntentId(paymentIntent: string | Stripe.PaymentIntent | null): string | null {
+  if (!paymentIntent) return null;
+  return typeof paymentIntent === "string" ? paymentIntent : paymentIntent.id;
+}
+
+function getSessionShippingDetails(session: Stripe.Checkout.Session) {
+  return "shipping_details" in session ? session.shipping_details : null;
 }

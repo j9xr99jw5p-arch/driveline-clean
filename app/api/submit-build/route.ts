@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { Resend } from "resend";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const reviewEmail = "driveline217@gmail.com";
+const fallbackResendFromEmail = "Driveline <auth@tacomaverifier.net>";
 
 type FitmentRisk = "low" | "medium" | "high";
 
@@ -51,8 +55,6 @@ export async function POST(request: Request) {
     const notes = [
       fitmentNotes && `Fitment notes: ${fitmentNotes}`,
       fullBuildList && `Full build list: ${fullBuildList}`,
-      contactEmail && `Contact email: ${contactEmail}`,
-      socialHandle && `Social handle: ${socialHandle}`,
       tireBrand && `Tire brand: ${tireBrand}`,
       tireModel && `Tire model: ${tireModel}`,
       wheelBrand && `Wheel brand: ${wheelBrand}`,
@@ -82,7 +84,7 @@ export async function POST(request: Request) {
       fitment_risk: normalizeRisk(getString("fitmentRisk")),
       source_url: getString("sourceUrl") || null,
       notes: notes || null,
-      owner_name: getString("ownerName"),
+      owner_name: socialHandle || "Anonymous",
       published: false
     };
 
@@ -90,7 +92,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Please enter a valid vehicle year." }, { status: 400 });
     }
 
-    if (!insertData.owner_name || !insertData.tire_size || !insertData.wheel_size) {
+    if (!insertData.tire_size || !insertData.wheel_size) {
       return NextResponse.json({ error: "Missing required build fields." }, { status: 400 });
     }
 
@@ -109,15 +111,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = createClient(
+    const supabase = createSubmitSupabaseClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
+      process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
     const { data, error } = await supabase
@@ -138,6 +134,12 @@ export async function POST(request: Request) {
       );
     }
 
+    const emailWarning = await sendReviewNotification(data.id, insertData, contactEmail);
+
+    if (emailWarning) {
+      return NextResponse.json({ ok: true, id: data.id, emailWarning });
+    }
+
     return NextResponse.json({ ok: true, id: data.id });
   } catch (error) {
     console.error("Submit build route crashed:", error);
@@ -150,4 +152,119 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+function createSubmitSupabaseClient(supabaseUrl: string, serviceRoleKey: string) {
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+}
+
+async function sendReviewNotification(
+  buildId: string,
+  build: {
+    year: number;
+    make: string;
+    model: string;
+    trim: string | null;
+    cab: string | null;
+    bed: string | null;
+    tire_size: string;
+    wheel_size: string;
+    wheel_offset: number | null;
+    lift_height: number | null;
+    suspension_setup: string | null;
+    rubbing_severity: string | null;
+    trimming_required: boolean | null;
+    body_mount_chop: boolean | null;
+    fitment_risk: FitmentRisk;
+    source_url: string | null;
+    notes: string | null;
+    owner_name: string;
+  },
+  replyTo: string
+) {
+  if (!process.env.RESEND_API_KEY) {
+    const warning = "Missing RESEND_API_KEY; build was saved but review email was not sent.";
+    console.error(warning);
+    return warning;
+  }
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const { error } = await resend.emails.send({
+    from: process.env.RESEND_FROM_EMAIL || fallbackResendFromEmail,
+    to: reviewEmail,
+    replyTo: replyTo || undefined,
+    subject: `New build submitted for review - ${build.year} ${build.make} ${build.model}`,
+    text: buildReviewEmailText(buildId, build)
+  });
+
+  if (error) {
+    console.error("Build review notification email failed:", error);
+    return error.message;
+  }
+
+  return null;
+}
+
+function buildReviewEmailText(
+  buildId: string,
+  build: {
+    year: number;
+    make: string;
+    model: string;
+    trim: string | null;
+    cab: string | null;
+    bed: string | null;
+    tire_size: string;
+    wheel_size: string;
+    wheel_offset: number | null;
+    lift_height: number | null;
+    suspension_setup: string | null;
+    rubbing_severity: string | null;
+    trimming_required: boolean | null;
+    body_mount_chop: boolean | null;
+    fitment_risk: FitmentRisk;
+    source_url: string | null;
+    notes: string | null;
+    owner_name: string;
+  }
+) {
+  return `A new Driveline build was submitted for review.
+
+Build ID: ${buildId}
+Owner: ${build.owner_name}
+
+Vehicle:
+${build.year} ${build.make} ${build.model}
+Trim: ${build.trim ?? "Not provided"}
+Cab: ${build.cab ?? "Not provided"}
+Bed: ${build.bed ?? "Not provided"}
+
+Fitment:
+Tire size: ${build.tire_size}
+Wheel size: ${build.wheel_size}
+Wheel offset: ${build.wheel_offset ?? "Unknown"}
+Lift height: ${build.lift_height ?? "Unknown"}
+Suspension setup: ${build.suspension_setup ?? "Not provided"}
+
+Clearance:
+Rubbing severity: ${build.rubbing_severity ?? "Not provided"}
+Trimming required: ${displayBoolean(build.trimming_required)}
+Body mount chop: ${displayBoolean(build.body_mount_chop)}
+Fitment risk: ${build.fitment_risk}
+
+Source URL: ${build.source_url ?? "Not provided"}
+
+Notes:
+${build.notes ?? "No notes provided"}`;
+}
+
+function displayBoolean(value: boolean | null) {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  return "Unknown";
 }

@@ -28,6 +28,7 @@ export type VerifiedBuild = {
   body_mount_chop: boolean | null;
   fitment_risk: FitmentRisk;
   notes: string | null;
+  build_summary?: string | null;
   owner_name: string | null;
   source_url: string | null;
   published: boolean;

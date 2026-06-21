@@ -10,9 +10,14 @@ export function SignInForm() {
     event.preventDefault();
     const email = String(new FormData(event.currentTarget).get("email"));
     const supabase = createSupabaseBrowserClient();
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+    const emailRedirectTo = `${siteUrl}/auth/callback?next=/account/success`;
+
+    console.log("Magic link redirect:", emailRedirectTo);
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/account` }
+      options: { emailRedirectTo }
     });
 
     if (error) {
