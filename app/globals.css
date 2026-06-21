@@ -1366,6 +1366,40 @@ p {
   gap: 1rem;
 }
 
+.admin-product-stock {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-stock-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.admin-stock-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 160px) auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.admin-stock-row strong,
+.admin-stock-row span {
+  display: block;
+}
+
+.admin-stock-row span {
+  margin-top: 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.admin-stock-row select {
+  min-height: 38px;
+}
+
 .admin-mini-list {
   display: grid;
   gap: 0.45rem;
@@ -1462,6 +1496,10 @@ p {
 
   .nav-menu {
     flex: 1;
+  }
+
+  .admin-stock-row {
+    grid-template-columns: 1fr;
   }
 
   .nav-menu-button {

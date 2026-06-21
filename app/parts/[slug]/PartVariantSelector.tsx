@@ -28,6 +28,7 @@ export function PartVariantSelector({
     (!sizes.length || variant.size === size) &&
     (!finishes.length || variant.finish === finish)
   )) ?? null;
+  const selectedVariantInStock = selectedVariant ? selectedVariant.inventoryStatus !== "out_of_stock" : false;
 
   if (!activeVariants.length) return null;
 
@@ -56,11 +57,12 @@ export function PartVariantSelector({
         <div className="part-selected-variant">
           <strong>{selectedVariant.variantName}</strong>
           {selectedVariant.priceLabel ? <span>{selectedVariant.priceLabel}</span> : null}
+          {!selectedVariantInStock ? <span>Out of stock</span> : null}
         </div>
       ) : (
         <p className="fine">That option combination is not available.</p>
       )}
-      <ProductCheckoutButton disabled={!selectedVariant} variantId={selectedVariant?.id ?? null} />
+      <ProductCheckoutButton disabled={!selectedVariant || !selectedVariantInStock} variantId={selectedVariant?.id ?? null} />
     </div>
   );
 }

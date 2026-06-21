@@ -93,6 +93,7 @@ function BuildProductCard({
   )) ?? null;
   const imageUrl = selectedVariant?.imageUrl ?? product.imageUrl;
   const priceLabel = selectedVariant?.priceLabel ?? firstVariant?.priceLabel ?? null;
+  const selectedVariantInStock = selectedVariant ? selectedVariant.inventoryStatus !== "out_of_stock" : false;
 
   return (
     <article className={`card build-product-card ${isExpanded ? "expanded" : ""}`}>
@@ -152,11 +153,12 @@ function BuildProductCard({
           ) : null}
           <ProductCheckoutButton
             buildId={buildId}
-            disabled={!selectedVariant}
+            disabled={!selectedVariant || !selectedVariantInStock}
             variantId={selectedVariant?.id ?? null}
           />
           <Link className="button full" href={`/parts/${product.slug}`}>View part details</Link>
           {!selectedVariant ? <p className="fine">That option combination is not available.</p> : null}
+          {selectedVariant && !selectedVariantInStock ? <p className="fine">This option is currently out of stock.</p> : null}
         </div>
       ) : null}
     </article>

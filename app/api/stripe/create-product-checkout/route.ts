@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   const supabase = createSupabaseAdminClient();
   const { data: variant, error } = await supabase
     .from("product_variants")
-    .select("id, product_id, variant_name, light_pattern, lens_color, harness_included, stripe_price_id, active")
+    .select("id, product_id, variant_name, light_pattern, lens_color, harness_included, stripe_price_id, active, inventory_status")
     .eq("id", variantId)
     .eq("active", true)
     .maybeSingle();
@@ -42,6 +42,10 @@ export async function POST(request: Request) {
 
   if (!variant?.stripe_price_id) {
     return NextResponse.json({ error: "This product option is not available for checkout." }, { status: 404 });
+  }
+
+  if (variant.inventory_status === "out_of_stock" || variant.inventory_status === "inactive") {
+    return NextResponse.json({ error: "This product option is currently out of stock." }, { status: 409 });
   }
 
   const { data: product, error: productError } = await supabase

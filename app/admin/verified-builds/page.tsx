@@ -38,12 +38,29 @@ type VisitAnalytics = {
   recent: SiteVisit[];
 };
 
+type ProductStockRow = {
+  id: string;
+  slug: string | null;
+  name: string;
+  brand: string | null;
+  category: string;
+  active: boolean;
+  product_variants: Array<{
+    id: string;
+    variant_name: string;
+    inventory_status: string | null;
+    price_cents: number | null;
+    active: boolean;
+  }> | null;
+};
+
 export default async function VerifiedBuildsAdminPage() {
   let signedIn = false;
   let adminEmailAllowed = false;
   let adminUnlocked = false;
   let builds: VerifiedBuild[] = [];
   let analytics: VisitAnalytics | null = null;
+  let productStock: ProductStockRow[] = [];
   let loadError: string | null = null;
   let currentEmail: string | null = null;
 
@@ -71,6 +88,7 @@ export default async function VerifiedBuildsAdminPage() {
       }
 
       analytics = await loadVisitAnalytics(admin);
+      productStock = await loadProductStock(admin);
     }
   }
 
@@ -112,6 +130,7 @@ export default async function VerifiedBuildsAdminPage() {
         ) : (
           <div className="admin-dashboard">
             <VisitAnalyticsPanel analytics={analytics} />
+            <ProductStockPanel products={productStock} />
             <section className="admin-panel">
               <div className="admin-panel-head">
                 <div>
@@ -174,6 +193,65 @@ async function loadVisitAnalytics(admin: ReturnType<typeof createSupabaseAdminCl
     topPages,
     recent: visits.slice(0, 8)
   };
+}
+
+async function loadProductStock(admin: ReturnType<typeof createSupabaseAdminClient>): Promise<ProductStockRow[]> {
+  const { data, error } = await admin
+    .from("products")
+    .select("id, slug, name, brand, category, active, product_variants(id, variant_name, inventory_status, price_cents, active)")
+    .order("category", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (error) {
+    if (error.code !== "42P01" && error.code !== "42703" && error.code !== "PGRST204") {
+      console.error("Failed to load product stock:", error);
+    }
+    return [];
+  }
+
+  return (data ?? []) as ProductStockRow[];
+}
+
+function ProductStockPanel({ products }: { products: ProductStockRow[] }) {
+  return (
+    <section className="card admin-product-stock admin-compact-card">
+      <div className="admin-panel-head">
+        <div>
+          <p className="eyebrow">Parts Inventory</p>
+          <h2>Product stock</h2>
+        </div>
+        <Link className="button" href="/parts">View parts</Link>
+      </div>
+      {products.length ? (
+        <div className="admin-stock-list">
+          {products.flatMap((product) => {
+            const variants = product.product_variants?.length ? product.product_variants : [];
+
+            return variants.map((variant) => (
+              <form action={updateProductStock} className="admin-stock-row" key={variant.id}>
+                <input type="hidden" name="variantId" value={variant.id} />
+                <div>
+                  <strong>{product.name}</strong>
+                  <span>
+                    {[product.brand, product.category, variant.variant_name].filter(Boolean).join(" / ")}
+                  </span>
+                </div>
+                <select name="inventoryStatus" defaultValue={variant.inventory_status || "in_stock"} aria-label={`Stock status for ${product.name}`}>
+                  <option value="in_stock">In stock</option>
+                  <option value="out_of_stock">Out of stock</option>
+                  <option value="unknown">Unknown</option>
+                  <option value="inactive">Hidden</option>
+                </select>
+                <button className="button" type="submit">Update</button>
+              </form>
+            ));
+          })}
+        </div>
+      ) : (
+        <p className="muted">Run the product catalog migrations to manage part stock here.</p>
+      )}
+    </section>
+  );
 }
 
 function VisitAnalyticsPanel({ analytics }: { analytics: VisitAnalytics | null }) {
@@ -478,6 +556,45 @@ async function generateOpenAiBuildSummary(build: VerifiedBuild) {
     console.error("OpenAI build summary generation crashed:", error);
     return createLocalBuildSummary(build);
   }
+}
+
+async function updateProductStock(formData: FormData) {
+  "use server";
+
+  if (!hasSupabaseServerEnv()) {
+    throw new Error("Supabase is not configured.");
+  }
+
+  const variantId = formData.get("variantId");
+  const inventoryStatus = formData.get("inventoryStatus");
+  const allowedStatuses = new Set(["in_stock", "out_of_stock", "unknown", "inactive"]);
+  if (typeof variantId !== "string" || !variantId) {
+    throw new Error("Missing product variant.");
+  }
+  if (typeof inventoryStatus !== "string" || !allowedStatuses.has(inventoryStatus)) {
+    throw new Error("Invalid inventory status.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const currentUser = await getCurrentSupabaseUser(supabase);
+  if (!currentUser || !(await hasValidAdminSession(currentUser.user.email))) {
+    throw new Error("You must unlock admin access before updating product stock.");
+  }
+
+  const admin = createSupabaseAdminClient();
+  const { error } = await admin
+    .from("product_variants")
+    .update({ inventory_status: inventoryStatus })
+    .eq("id", variantId);
+
+  if (error) {
+    console.error("Failed to update product stock:", error);
+    throw new Error("Product stock update failed.");
+  }
+
+  revalidatePath("/admin/verified-builds");
+  revalidatePath("/parts");
+  revalidatePath("/builds");
 }
 
 async function unlockAdmin(formData: FormData) {
