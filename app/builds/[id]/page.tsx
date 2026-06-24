@@ -16,8 +16,8 @@ import {
 type BuildProductRow = {
   id: string;
   product_type: string | null;
-  variant_id: string | null;
-  notes: string | null;
+  variant_id?: string | null;
+  notes?: string | null;
   display_order: number | null;
   products: BuildProduct | BuildProduct[] | null;
 };
@@ -57,7 +57,8 @@ const priceLabelsByStripePriceId: Record<string, string> = {
   price_1TkUDzAxOgxntpwRJ97keK60: "$2,519.95",
   price_1TkUmQAxOgxntpwRkHxLMzbz: "$89.95",
   price_1TkVCWAxOgxntpwR73QN8vJo: "$209.99",
-  price_1TkVa0AxOgxntpwR6e15v37S: "$509.99"
+  price_1TkVa0AxOgxntpwR6e15v37S: "$509.99",
+  price_1TlghAAxOgxntpwRkCG6aHX4: "$295.99"
 };
 
 export default async function BuildDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -156,6 +157,38 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
       .order("created_at", { ascending: true });
 
     productLinks = fallback.data;
+
+    if (fallback.error?.code === "42703" || fallback.error?.code === "PGRST204") {
+      const legacyFallback = await admin
+        .from("build_products")
+        .select(`
+          id,
+          product_type,
+          display_order,
+          products (
+            id,
+            name,
+            brand,
+            category,
+            description,
+            image_url,
+            stripe_price_id,
+            product_variants (
+              id,
+              variant_name,
+              stripe_price_id,
+              image_url,
+              active,
+              inventory_status
+            )
+          )
+        `)
+        .eq("build_id", id)
+        .order("display_order", { ascending: true })
+        .order("created_at", { ascending: true });
+
+      productLinks = legacyFallback.data;
+    }
   }
 
   const typedBuild = build as VerifiedBuild;
