@@ -2,37 +2,46 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { ProductSummary } from "@/lib/products";
+import { normalizeProductCategory, type ProductSummary } from "@/lib/products";
 
 export function PartsGrid({ products, categories }: { products: ProductSummary[]; categories: string[] }) {
   const [category, setCategory] = useState("all");
   const filteredProducts = useMemo(() => {
     if (category === "all") return products;
-    return products.filter((product) => normalizeCategory(product.category) === normalizeCategory(category));
+    return products.filter((product) => normalizeProductCategory(product.category) === normalizeProductCategory(category));
   }, [category, products]);
 
   return (
     <div className="section-stack">
       {categories.length ? (
-        <div className="card filter-panel">
-          <div>
-            <p className="eyebrow">Categories</p>
-            <h2>Filter the parts catalog.</h2>
+        <div className="parts-filter-layout">
+          <aside className="card parts-inspiration-card">
+            <div>
+              <p className="eyebrow">Not sure what to buy?</p>
+              <h2>See real Tacoma setups for ideas.</h2>
+            </div>
+            <Link className="button" href="/builds">Inspiration</Link>
+          </aside>
+          <div className="card filter-panel">
+            <div>
+              <p className="eyebrow">Categories</p>
+              <h2>Filter the parts catalog.</h2>
+            </div>
+            <div className="parts-category-filter" role="list" aria-label="Part categories">
+              <button className={category === "all" ? "active" : ""} type="button" onClick={() => setCategory("all")}>All</button>
+              {categories.map((option) => (
+                <button
+                  className={normalizeProductCategory(category) === normalizeProductCategory(option) ? "active" : ""}
+                  key={normalizeProductCategory(option)}
+                  type="button"
+                  onClick={() => setCategory(option)}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+            <p className="muted">{filteredProducts.length} of {products.length} parts shown</p>
           </div>
-          <div className="parts-category-filter" role="list" aria-label="Part categories">
-            <button className={category === "all" ? "active" : ""} type="button" onClick={() => setCategory("all")}>All</button>
-            {categories.map((option) => (
-              <button
-                className={category === option ? "active" : ""}
-                key={option}
-                type="button"
-                onClick={() => setCategory(option)}
-              >
-                {option}
-              </button>
-            ))}
-          </div>
-          <p className="muted">{filteredProducts.length} of {products.length} parts shown</p>
         </div>
       ) : null}
 
@@ -70,8 +79,4 @@ export function PartsGrid({ products, categories }: { products: ProductSummary[]
       )}
     </div>
   );
-}
-
-function normalizeCategory(value: string) {
-  return value.trim().toLowerCase();
 }

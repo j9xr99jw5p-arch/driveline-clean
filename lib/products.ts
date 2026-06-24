@@ -25,9 +25,11 @@ export type ProductSummary = {
   category: string;
   description: string | null;
   imageUrl: string | null;
+  imageUrls: string[];
   priceCents: number | null;
   priceLabel: string | null;
   affiliateUrl: string | null;
+  orderUrl: string | null;
   stripePriceId: string | null;
   buildCount: number;
   variants: ProductVariantOption[];
@@ -61,6 +63,64 @@ export function mapVariant(row: ProductVariantRow): ProductVariantOption {
     priceCents: row.price_cents ?? null,
     priceLabel: formatCents(row.price_cents)
   };
+}
+
+const categoryAliases: Record<string, string> = {
+  light: "lighting",
+  lights: "lighting",
+  lighting: "lighting",
+  "offroad lighting": "lighting",
+  "off-road lighting": "lighting",
+  armour: "armor",
+  armoury: "armor",
+  recovery: "recovery",
+  recoveries: "recovery",
+  suspension: "suspension",
+  wheels: "wheels",
+  wheel: "wheels",
+  tires: "tires",
+  tire: "tires",
+  tyres: "tires",
+  tyre: "tires",
+  interior: "interior",
+  electronics: "interior / electronics",
+  "interior electronics": "interior / electronics",
+  exterior: "exterior",
+  overland: "overland"
+};
+
+const categoryLabels: Record<string, string> = {
+  armor: "Armor",
+  exterior: "Exterior",
+  "interior / electronics": "Interior / Electronics",
+  lighting: "Lighting",
+  overland: "Overland",
+  recovery: "Recovery",
+  suspension: "Suspension",
+  tires: "Tires",
+  "wheel hardware": "Wheel Hardware",
+  wheels: "Wheels"
+};
+
+export function normalizeProductCategory(value: string | null | undefined) {
+  const normalized = (value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/\s+/g, " ");
+
+  return categoryAliases[normalized] ?? normalized;
+}
+
+export function displayProductCategory(value: string | null | undefined) {
+  const normalized = normalizeProductCategory(value);
+  if (!normalized) return "";
+  if (categoryLabels[normalized]) return categoryLabels[normalized];
+
+  return normalized
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 export type ProductVariantRow = {

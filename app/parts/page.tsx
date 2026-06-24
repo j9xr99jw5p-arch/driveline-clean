@@ -1,5 +1,12 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { formatCents, mapVariant, type ProductSummary, type ProductVariantRow } from "@/lib/products";
+import {
+  displayProductCategory,
+  formatCents,
+  mapVariant,
+  normalizeProductCategory,
+  type ProductSummary,
+  type ProductVariantRow
+} from "@/lib/products";
 import { PartsGrid } from "./PartsGrid";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +21,9 @@ type ProductRow = {
   image_url: string | null;
   price_cents?: number | null;
   affiliate_url?: string | null;
+  order_url?: string | null;
   stripe_price_id: string | null;
+  product_images?: Array<{ url: string; sort_order: number | null }> | null;
 };
 
 type BuildProductCountRow = {
@@ -25,17 +34,17 @@ export default async function PartsPage() {
   const supabase = createSupabaseAdminClient();
   const productResult = await supabase
     .from("products")
-    .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, stripe_price_id")
+    .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, order_url, stripe_price_id, product_images(url, sort_order)")
     .eq("active", true)
     .order("category", { ascending: true })
     .order("name", { ascending: true });
   let productRows = productResult.data as ProductRow[] | null;
   let productError = productResult.error;
 
-  if (productError?.code === "42703" || productError?.code === "PGRST204") {
+  if (productError?.code === "42703" || productError?.code === "PGRST200" || productError?.code === "PGRST204") {
     const fallback = await supabase
       .from("products")
-      .select("id, name, brand, category, description, image_url, stripe_price_id")
+      .select("id, name, brand, category, description, image_url, order_url, stripe_price_id")
       .eq("active", true)
       .order("category", { ascending: true })
       .order("name", { ascending: true });
@@ -93,24 +102,29 @@ export default async function PartsPage() {
   const products: ProductSummary[] = ((productRows ?? []) as ProductRow[]).map((product) => {
     const variants = (variantsByProduct.get(product.id) ?? []).map(mapVariant);
     const firstVariantPrice = variants.find((variant) => variant.priceCents !== null)?.priceCents ?? null;
+    const productImageUrls = getProductImageUrls(product);
 
     return {
       id: product.id,
       slug: product.slug ?? product.id,
       name: product.name,
       brand: product.brand,
-      category: product.category,
+      category: displayProductCategory(product.category),
       description: product.description,
-      imageUrl: product.image_url,
+      imageUrl: productImageUrls[0] ?? null,
+      imageUrls: productImageUrls,
       priceCents: product.price_cents ?? firstVariantPrice,
       priceLabel: formatCents(product.price_cents ?? firstVariantPrice),
       affiliateUrl: product.affiliate_url ?? null,
+      orderUrl: product.order_url ?? null,
       stripePriceId: product.stripe_price_id,
       buildCount: countsByProduct.get(product.id) ?? 0,
       variants
     };
   });
-  const categories = Array.from(new Set(products.map((product) => product.category?.trim()).filter((value): value is string => Boolean(value))))
+  const categories = Array.from(new Map(products
+    .map((product) => [normalizeProductCategory(product.category), displayProductCategory(product.category)] as const)
+    .filter(([key]) => Boolean(key))).values())
     .sort((a, b) => a.localeCompare(b));
 
   return (
@@ -125,4 +139,18 @@ export default async function PartsPage() {
       </div>
     </section>
   );
+}
+
+function getProductImageUrls(product: ProductRow) {
+  const imageUrls = (product.product_images ?? [])
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map((image) => image.url)
+    .filter(Boolean);
+
+  if (product.image_url && !imageUrls.includes(product.image_url)) {
+    imageUrls.push(product.image_url);
+  }
+
+  return imageUrls;
 }

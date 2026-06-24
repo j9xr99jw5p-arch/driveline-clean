@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BuildCard } from "@/components/BuildCard";
 import { ExpandableText } from "@/components/ExpandableText";
-import { formatCents, mapVariant, type ProductVariantRow } from "@/lib/products";
+import { displayProductCategory, formatCents, mapVariant, type ProductVariantRow } from "@/lib/products";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { VerifiedBuild } from "@/lib/types";
 import { PartVariantSelector } from "./PartVariantSelector";
@@ -19,7 +19,9 @@ type ProductRow = {
   image_url: string | null;
   price_cents?: number | null;
   affiliate_url?: string | null;
+  order_url?: string | null;
   stripe_price_id: string | null;
+  product_images?: Array<{ url: string; sort_order: number | null }> | null;
 };
 
 type BuildProductLinkRow = {
@@ -34,7 +36,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   const supabase = createSupabaseAdminClient();
   const productResult = await supabase
     .from("products")
-    .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, stripe_price_id")
+    .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, order_url, stripe_price_id, product_images(url, sort_order)")
     .eq("active", true)
     .eq("slug", slug)
     .maybeSingle();
@@ -44,7 +46,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   if (!product && isUuid(slug)) {
     const idResult = await supabase
       .from("products")
-      .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, stripe_price_id")
+      .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, order_url, stripe_price_id, product_images(url, sort_order)")
       .eq("active", true)
       .eq("id", slug)
       .maybeSingle();
@@ -53,10 +55,10 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
     productError = idResult.error;
   }
 
-  if (productError?.code === "42703" || productError?.code === "PGRST204") {
+  if (productError?.code === "42703" || productError?.code === "PGRST200" || productError?.code === "PGRST204") {
     const fallback = await supabase
       .from("products")
-      .select("id, name, brand, category, description, image_url, stripe_price_id")
+      .select("id, name, brand, category, description, image_url, order_url, stripe_price_id")
       .eq("active", true)
       .eq("id", slug)
       .maybeSingle();
@@ -121,6 +123,9 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   const variants = (variantRows ?? []).map(mapVariant);
   const firstVariantPrice = variants.find((variant) => variant.priceCents !== null)?.priceCents ?? null;
   const priceLabel = formatCents((product as ProductRow).price_cents ?? firstVariantPrice);
+  const productImageUrls = getProductImageUrls(product);
+  const primaryImageUrl = productImageUrls[0] ?? null;
+  const externalProductUrl = product.affiliate_url ?? product.order_url ?? null;
   const buildLinks = (linkRows ?? [])
     .map((link) => {
       const build = Array.isArray(link.verified_builds) ? link.verified_builds[0] : link.verified_builds;
@@ -134,23 +139,33 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
       <section className="band">
         <div className="section part-detail-layout">
           <div className="part-detail-image">
-            {product.image_url ? (
+            {primaryImageUrl ? (
               <span className="part-image-frame">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="part-image-bg" src={product.image_url} alt="" aria-hidden="true" />
+                <img className="part-image-bg" src={primaryImageUrl} alt="" aria-hidden="true" />
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="part-image-main" src={product.image_url} alt={product.name} />
+                <img className="part-image-main" src={primaryImageUrl} alt={product.name} />
               </span>
-            ) : <span>{product.category}</span>}
+            ) : <span>{displayProductCategory(product.category)}</span>}
+            {productImageUrls.length > 1 ? (
+              <div className="part-image-strip" aria-label="Additional product images">
+                {productImageUrls.map((imageUrl, index) => (
+                  <a href={imageUrl} key={imageUrl} target="_blank" rel="noreferrer">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={imageUrl} alt={`${product.name} image ${index + 1}`} />
+                  </a>
+                ))}
+              </div>
+            ) : null}
           </div>
           <div className="part-detail-content">
-            <p className="eyebrow">{[product.brand, product.category].filter(Boolean).join(" / ")}</p>
+            <p className="eyebrow">{[product.brand, displayProductCategory(product.category)].filter(Boolean).join(" / ")}</p>
             <h1>{product.name}</h1>
             {priceLabel ? <p className="part-detail-price">{priceLabel}</p> : null}
             {product.description ? <ExpandableText text={product.description} className="lead part-description" /> : null}
             <div className="actions" style={{ justifyContent: "flex-start" }}>
-              {product.affiliate_url ? (
-                <Link className="button primary" href={product.affiliate_url} target="_blank" rel="noreferrer">Buy this part</Link>
+              {externalProductUrl ? (
+                <Link className="button primary" href={externalProductUrl} target="_blank" rel="noreferrer">View Product</Link>
               ) : null}
               <Link className="button" href="/parts">Back to parts</Link>
             </div>
@@ -200,4 +215,18 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function getProductImageUrls(product: ProductRow) {
+  const imageUrls = (product.product_images ?? [])
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map((image) => image.url)
+    .filter(Boolean);
+
+  if (product.image_url && !imageUrls.includes(product.image_url)) {
+    imageUrls.push(product.image_url);
+  }
+
+  return imageUrls;
 }
