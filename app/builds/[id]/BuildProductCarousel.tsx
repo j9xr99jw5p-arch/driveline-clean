@@ -84,6 +84,7 @@ function BuildProductCard({
   const harnessOptions = uniqueBooleans(activeVariants.map((variant) => variant.harnessIncluded));
   const sizes = uniqueOptions(activeVariants.map((variant) => variant.size));
   const finishes = uniqueOptions(activeVariants.map((variant) => variant.finish));
+  const hasSelectableOptions = lightPatterns.length > 1 || lensColors.length > 1 || harnessOptions.length > 1 || sizes.length > 1 || finishes.length > 1;
   const selectedVariant = activeVariants.find((variant) => (
     (!lightPatterns.length || variant.lightPattern === lightPattern) &&
     (!lensColors.length || variant.lensColor === lensColor) &&
@@ -131,7 +132,7 @@ function BuildProductCard({
               {[product.linkedVariantLabel, product.linkNotes].filter(Boolean).join(" · ")}
             </p>
           ) : null}
-          {lightPatterns.length || lensColors.length || harnessOptions.length > 1 || sizes.length || finishes.length ? (
+          {hasSelectableOptions ? (
             <div className="variant-selectors">
               <VariantSelect label="Light pattern" options={lightPatterns} value={lightPattern} onChange={setLightPattern} />
               <VariantSelect label="Lens color" options={lensColors} value={lensColor} onChange={setLensColor} />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { ProductVariantOption } from "@/lib/products";
+import { getVisibleProductVariants, type ProductVariantOption } from "@/lib/products";
 import { ProductCheckoutButton } from "@/app/builds/[id]/ProductCheckoutButton";
 
 export function PartVariantSelector({
@@ -9,7 +9,7 @@ export function PartVariantSelector({
 }: {
   variants: ProductVariantOption[];
 }) {
-  const activeVariants = variants.filter((variant) => variant.active && variant.inventoryStatus !== "inactive");
+  const activeVariants = getVisibleProductVariants(variants);
   const firstVariant = activeVariants[0] ?? null;
   const [lightPattern, setLightPattern] = useState(firstVariant?.lightPattern ?? "");
   const [lensColor, setLensColor] = useState(firstVariant?.lensColor ?? "");

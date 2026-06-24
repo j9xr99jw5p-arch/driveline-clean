@@ -35,6 +35,15 @@ export type ProductSummary = {
   variants: ProductVariantOption[];
 };
 
+const placeholderVariantNames = new Set([
+  "default",
+  "standard",
+  "single option",
+  "one option",
+  "base",
+  "regular"
+]);
+
 export function formatCents(cents: number | null | undefined) {
   if (cents === null || cents === undefined) return null;
 
@@ -63,6 +72,65 @@ export function mapVariant(row: ProductVariantRow): ProductVariantOption {
     priceCents: row.price_cents ?? null,
     priceLabel: formatCents(row.price_cents)
   };
+}
+
+export function getVisibleProductVariants(variants: ProductVariantOption[]) {
+  return variants.filter((variant) => variant.active && variant.inventoryStatus !== "inactive");
+}
+
+export function getSinglePurchasableVariant(variants: ProductVariantOption[]) {
+  return getVisibleProductVariants(variants).find((variant) => variant.stripePriceId) ?? null;
+}
+
+export function hasRealProductVariants(variants: ProductVariantOption[]) {
+  const visibleVariants = getVisibleProductVariants(variants);
+  if (visibleVariants.length <= 1) return false;
+
+  const signatures = new Set(visibleVariants.map(getVariantSignature));
+  return signatures.size > 1;
+}
+
+export function getProductPriceLabel(productPriceCents: number | null | undefined, variants: ProductVariantOption[]) {
+  const visibleVariants = getVisibleProductVariants(variants);
+  const variantPrices = visibleVariants
+    .map((variant) => variant.priceCents)
+    .filter((price): price is number => typeof price === "number" && Number.isFinite(price));
+
+  if (!hasRealProductVariants(variants)) {
+    return formatCents(productPriceCents ?? variantPrices[0] ?? null);
+  }
+
+  const uniquePrices = Array.from(new Set(variantPrices)).sort((a, b) => a - b);
+
+  if (uniquePrices.length === 1) {
+    return formatCents(uniquePrices[0]);
+  }
+
+  if (uniquePrices.length > 1) {
+    return `From ${formatCents(uniquePrices[0])}`;
+  }
+
+  return formatCents(productPriceCents) ?? "Varied pricing";
+}
+
+function getVariantSignature(variant: ProductVariantOption) {
+  const normalizedName = variant.variantName.trim().toLowerCase();
+  const meaningfulName = placeholderVariantNames.has(normalizedName) ? "" : normalizedName;
+
+  return [
+    variant.lightPattern,
+    variant.beamPattern,
+    variant.lensColor,
+    variant.harnessIncluded ? "harness" : "no-harness",
+    variant.size,
+    variant.finish,
+    variant.sku,
+    variant.supplierSku,
+    meaningfulName
+  ]
+    .filter(Boolean)
+    .map((value) => String(value).trim().toLowerCase())
+    .join("|");
 }
 
 const categoryAliases: Record<string, string> = {

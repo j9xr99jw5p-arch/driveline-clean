@@ -1,7 +1,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   displayProductCategory,
-  formatCents,
+  getProductPriceLabel,
   mapVariant,
   normalizeProductCategory,
   type ProductSummary,
@@ -101,7 +101,6 @@ export default async function PartsPage() {
 
   const products: ProductSummary[] = ((productRows ?? []) as ProductRow[]).map((product) => {
     const variants = (variantsByProduct.get(product.id) ?? []).map(mapVariant);
-    const firstVariantPrice = variants.find((variant) => variant.priceCents !== null)?.priceCents ?? null;
     const productImageUrls = getProductImageUrls(product);
 
     return {
@@ -113,8 +112,8 @@ export default async function PartsPage() {
       description: product.description,
       imageUrl: productImageUrls[0] ?? null,
       imageUrls: productImageUrls,
-      priceCents: product.price_cents ?? firstVariantPrice,
-      priceLabel: formatCents(product.price_cents ?? firstVariantPrice),
+      priceCents: product.price_cents ?? variants.find((variant) => variant.priceCents !== null)?.priceCents ?? null,
+      priceLabel: getProductPriceLabel(product.price_cents, variants),
       affiliateUrl: product.affiliate_url ?? null,
       orderUrl: product.order_url ?? null,
       stripePriceId: product.stripe_price_id,

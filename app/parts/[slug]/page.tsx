@@ -1,8 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ProductCheckoutButton } from "@/app/builds/[id]/ProductCheckoutButton";
 import { BuildCard } from "@/components/BuildCard";
 import { ExpandableText } from "@/components/ExpandableText";
-import { displayProductCategory, formatCents, mapVariant, type ProductVariantRow } from "@/lib/products";
+import {
+  displayProductCategory,
+  getProductPriceLabel,
+  getSinglePurchasableVariant,
+  hasRealProductVariants,
+  mapVariant,
+  type ProductVariantRow
+} from "@/lib/products";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { VerifiedBuild } from "@/lib/types";
 import { PartVariantSelector } from "./PartVariantSelector";
@@ -121,8 +129,10 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   if (linkError) console.error("Part detail build links query failed:", linkError);
 
   const variants = (variantRows ?? []).map(mapVariant);
-  const firstVariantPrice = variants.find((variant) => variant.priceCents !== null)?.priceCents ?? null;
-  const priceLabel = formatCents((product as ProductRow).price_cents ?? firstVariantPrice);
+  const hasSelectableVariants = hasRealProductVariants(variants);
+  const singleCheckoutVariant = !hasSelectableVariants ? getSinglePurchasableVariant(variants) : null;
+  const singleCheckoutVariantInStock = singleCheckoutVariant ? singleCheckoutVariant.inventoryStatus !== "out_of_stock" : false;
+  const priceLabel = getProductPriceLabel(product.price_cents, variants);
   const productImageUrls = getProductImageUrls(product);
   const primaryImageUrl = productImageUrls[0] ?? null;
   const externalProductUrl = product.affiliate_url ?? product.order_url ?? null;
@@ -173,10 +183,27 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
         </div>
       </section>
 
-      {variants.length ? (
+      {hasSelectableVariants ? (
         <section className="band alt">
           <div className="section">
             <PartVariantSelector variants={variants} />
+          </div>
+        </section>
+      ) : singleCheckoutVariant ? (
+        <section className="band alt">
+          <div className="section">
+            <div className="card part-variant-panel">
+              <div>
+                <p className="eyebrow">Checkout</p>
+                <h2>Ready to shop this part?</h2>
+              </div>
+              <div className="part-selected-variant">
+                <strong>{product.name}</strong>
+                {singleCheckoutVariant.priceLabel ? <span>{singleCheckoutVariant.priceLabel}</span> : null}
+                {!singleCheckoutVariantInStock ? <span>Out of stock</span> : null}
+              </div>
+              <ProductCheckoutButton disabled={!singleCheckoutVariantInStock} variantId={singleCheckoutVariant.id} />
+            </div>
           </div>
         </section>
       ) : null}

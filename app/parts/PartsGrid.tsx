@@ -63,7 +63,7 @@ export function PartsGrid({ products, categories }: { products: ProductSummary[]
                 <p className="eyebrow">{[product.brand, product.category].filter(Boolean).join(" / ")}</p>
                 <h3>{product.name}</h3>
                 <div className="part-card-meta">
-                  {product.priceLabel ? <strong>{product.priceLabel}</strong> : <span className="muted">Price varies</span>}
+                  {product.priceLabel ? <strong>{product.priceLabel}</strong> : null}
                   <span>{product.buildCount} verified {product.buildCount === 1 ? "build" : "builds"}</span>
                 </div>
                 <Link className="button full" href={`/parts/${product.slug}`}>View Part</Link>
