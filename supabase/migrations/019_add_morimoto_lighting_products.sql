@@ -28,7 +28,7 @@ values
     'Morimoto Amber Fogs',
     'Morimoto',
     'Lighting',
-    $$Morimoto XB Evo fog lights for 2016-2023 Toyota Tacoma trucks. Includes one pair of Type T Morimoto XB Evo fog lights, Philips head mounting screws, H11/H9/H8 connectors, and optional Yellow Lamin-X protective film. A practical fog-light upgrade for better bad-weather visibility without overbuilding the truck. Installation instructions: https://www.morimotohid.com/core/media/media.nl?id=22902275&c=5129608&h=fe0YsWOvVx2_rcZeb1rkCZ9pV35LBOO_UeeM3zyuRvLV7Kx4$$,
+    $$Morimoto XB Evo fog lights for 2016-2023 Toyota Tacoma trucks. Includes a pair of Type T XB Evo fog lights, mounting screws, H11/H9/H8 connectors, and optional Yellow Lamin-X protective film. A clean fog-light upgrade for better bad-weather visibility without overbuilding the truck.$$,
     'https://www.morimotohid.com/images/Item%20Images/140586.Toyota_Tacoma_XB_Evo_White_Fogs.090.jpg?resizeid=9&resizeh=740&resizew=1109',
     null,
     'https://www.morimotohid.com/toyota-tacoma-16-23-xb-evo-standard-fog-lights_3?quantity=1',
@@ -105,10 +105,10 @@ select
 from public.products
 cross join (
   values
-    ('No grease / No yellow film', false, false),
-    ('Dielectric grease / No yellow film', true, false),
+    ('No grease / No film', false, false),
+    ('Grease / No film', true, false),
     ('No grease / Yellow film', false, true),
-    ('Dielectric grease / Yellow film', true, true)
+    ('Grease / Yellow film', true, true)
 ) as options(variant_name, dielectric_grease_included, protective_film_included)
 where products.slug = 'morimoto-tacoma-xb-evo-amber-fog-lights';
 

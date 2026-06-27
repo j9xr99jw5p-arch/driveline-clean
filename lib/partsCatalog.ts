@@ -1,6 +1,7 @@
 import "server-only";
 import {
   displayProductCategory,
+  applyVariantAddOnPricing,
   mapVariant,
   normalizeProductCategory,
   type ProductSummary,
@@ -107,12 +108,12 @@ export async function getPartsCatalog() {
         priceCents: variant.priceCents
       }, stripePrices);
 
-      return {
+      return applyVariantAddOnPricing({
         ...variant,
         priceCents: variantPrice.priceCents,
         priceLabel: variantPrice.priceLabel,
         priceSource: variantPrice.priceSource
-      };
+      });
     });
     const productImageUrls = getProductImageUrls(product);
     const firstVariantPrice = variants.find((variant) => variant.priceSource !== "unavailable") ?? null;

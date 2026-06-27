@@ -55,6 +55,22 @@ export function formatCents(cents: number | null | undefined) {
   }).format(cents / 100);
 }
 
+export function getVariantAddOnPriceCents(variant: Pick<ProductVariantOption, "dielectricGreaseIncluded">) {
+  return variant.dielectricGreaseIncluded ? 450 : 0;
+}
+
+export function applyVariantAddOnPricing<T extends ProductVariantOption>(variant: T): T {
+  const addOnPriceCents = getVariantAddOnPriceCents(variant);
+  if (!addOnPriceCents || typeof variant.priceCents !== "number") return variant;
+
+  const priceCents = variant.priceCents + addOnPriceCents;
+  return {
+    ...variant,
+    priceCents,
+    priceLabel: formatCents(priceCents)
+  };
+}
+
 export function mapVariant(row: ProductVariantRow): ProductVariantOption {
   return {
     id: row.id,

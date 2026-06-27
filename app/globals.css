@@ -1695,6 +1695,11 @@ p {
   transform: scale(1.08);
 }
 
+.part-detail-image .part-image-bg {
+  filter: blur(12px) brightness(0.42);
+  transform: scale(1.04);
+}
+
 .part-image-main {
   position: relative;
   z-index: 1;
@@ -1745,19 +1750,20 @@ p {
 
 .part-detail-layout {
   display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1fr);
-  gap: 2rem;
-  align-items: center;
+  grid-template-columns: minmax(280px, 0.82fr) minmax(0, 1fr);
+  gap: 1.75rem;
+  align-items: start;
 }
 
 .part-detail-image {
-  min-height: 420px;
-  border: 1px solid var(--border-color);
+  min-height: 360px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 8px;
+  background: rgba(8, 11, 17, 0.72);
 }
 
 .part-detail-image .part-image-frame {
-  min-height: 420px;
+  min-height: 360px;
 }
 
 .part-image-strip {
@@ -1789,15 +1795,135 @@ p {
 }
 
 .part-detail-price {
-  margin: 0 0 1rem;
+  margin: 0;
   color: var(--text-primary);
   font-size: 1.35rem;
   font-weight: 900;
 }
 
+.part-description {
+  margin: 0;
+}
+
+.part-context-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.part-context-item {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.65rem 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.part-context-item span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.part-context-item strong {
+  color: var(--text-primary);
+  font-size: 0.92rem;
+}
+
+.part-best-for {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.part-best-for span {
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: rgba(96, 165, 250, 0.08);
+  padding: 0.28rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
 .part-variant-panel {
   display: grid;
   gap: 1rem;
+}
+
+.part-variant-panel.compact {
+  padding: 1rem 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.part-option-head {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.part-option-head p {
+  margin: 0;
+}
+
+.variant-card-grid {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.variant-option-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.85rem;
+  align-items: center;
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  background: rgba(15, 18, 24, 0.42);
+  color: var(--text-primary);
+  padding: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+}
+
+.variant-option-card:hover,
+.variant-option-card:focus-visible {
+  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(15, 18, 24, 0.72);
+}
+
+.variant-option-card.selected {
+  border-color: rgba(96, 165, 250, 0.78);
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.22);
+}
+
+.variant-option-card:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.variant-option-card span {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.variant-option-card strong {
+  color: var(--text-primary);
+  line-height: 1.25;
+}
+
+.variant-option-card small {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.variant-option-price {
+  color: var(--text-primary);
+  font-weight: 900;
+  text-align: right;
 }
 
 .part-selected-variant {
@@ -1810,9 +1936,49 @@ p {
   color: var(--text-secondary);
 }
 
+.part-included-box {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.9rem 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.part-included-box h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.part-included-box ul {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-secondary);
+}
+
+.part-secondary-actions {
+  justify-content: flex-start;
+}
+
 .part-selected-variant strong,
 .part-selected-variant span {
   color: var(--text-primary);
+}
+
+.part-empty-reference {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.part-empty-reference h2,
+.part-empty-reference p {
+  margin: 0;
 }
 
 .part-build-card {
@@ -2070,6 +2236,25 @@ p {
 
   .build-photo-frame {
     aspect-ratio: 16 / 10;
+  }
+
+  .part-detail-image,
+  .part-detail-image .part-image-frame {
+    min-height: 280px;
+  }
+
+  .part-context-grid,
+  .variant-option-card {
+    grid-template-columns: 1fr;
+  }
+
+  .variant-option-price {
+    text-align: left;
+  }
+
+  .part-empty-reference {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

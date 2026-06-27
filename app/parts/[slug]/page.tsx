@@ -2,9 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProductCheckoutButton } from "@/app/builds/[id]/ProductCheckoutButton";
 import { BuildCard } from "@/components/BuildCard";
-import { ExpandableText } from "@/components/ExpandableText";
 import {
   displayProductCategory,
+  applyVariantAddOnPricing,
   getSinglePurchasableVariant,
   hasRealProductVariants,
   mapVariant,
@@ -139,12 +139,12 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
       priceCents: variant.priceCents
     }, stripePrices);
 
-    return {
+    return applyVariantAddOnPricing({
       ...variant,
       priceCents: variantPrice.priceCents,
       priceLabel: variantPrice.priceLabel,
       priceSource: variantPrice.priceSource
-    };
+    });
   });
   const hasSelectableVariants = hasRealProductVariants(variants);
   const singleCheckoutVariant = !hasSelectableVariants ? getSinglePurchasableVariant(variants) : null;
@@ -157,6 +157,9 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   const priceLabel = displayPrice.priceLabel;
   const productImageUrls = getProductImageUrls(product);
   const primaryImageUrl = productImageUrls[0] ?? null;
+  const cleanDescription = sanitizeProductDescription(product.description);
+  const installInstructionsUrl = getInstallInstructionsUrl(product);
+  const productDetails = getProductDetailContext(product);
   const buildLinks = (linkRows ?? [])
     .map((link) => {
       const build = Array.isArray(link.verified_builds) ? link.verified_builds[0] : link.verified_builds;
@@ -193,38 +196,48 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
             <p className="eyebrow">{[product.brand, displayProductCategory(product.category)].filter(Boolean).join(" / ")}</p>
             <h1>{product.name}</h1>
             {priceLabel ? <p className="part-detail-price">{priceLabel}</p> : null}
-            {product.description ? <ExpandableText text={product.description} className="lead part-description" /> : null}
-            <div className="actions" style={{ justifyContent: "flex-start" }}>
+            {cleanDescription ? <p className="lead part-description">{cleanDescription}</p> : null}
+            <div className="part-context-grid" aria-label="Part details">
+              {productDetails.map((detail) => (
+                <div className="part-context-item" key={detail.label}>
+                  <span>{detail.label}</span>
+                  <strong>{detail.value}</strong>
+                </div>
+              ))}
+            </div>
+            {productDetails.some((detail) => detail.label === "Best for") ? (
+              <div className="part-best-for" aria-label="Best for">
+                {getBestForPills(product).map((pill) => <span key={pill}>{pill}</span>)}
+              </div>
+            ) : null}
+            {hasSelectableVariants ? (
+              <PartVariantSelector compact variants={variants} />
+            ) : singleCheckoutVariant ? (
+              <div className="part-variant-panel compact">
+                <div className="part-selected-variant">
+                  <strong>{product.name}</strong>
+                  {singleCheckoutVariant.priceLabel ? <span>{singleCheckoutVariant.priceLabel}</span> : null}
+                  {!singleCheckoutVariantInStock ? <span>Out of stock</span> : null}
+                </div>
+                <ProductCheckoutButton disabled={!singleCheckoutVariantInStock} label="Buy this part" variantId={singleCheckoutVariant.id} />
+              </div>
+            ) : null}
+            {getIncludedItems(product).length ? (
+              <div className="part-included-box">
+                <h2>What’s included</h2>
+                <ul>
+                  {getIncludedItems(product).map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+            ) : null}
+            <div className="actions part-secondary-actions">
               <Link className="button" href="/parts">Back to parts</Link>
+              {installInstructionsUrl ? <a className="button" href={installInstructionsUrl} target="_blank" rel="noreferrer">View install instructions</a> : null}
+              {product.order_url ? <a className="button" href={product.order_url} target="_blank" rel="noreferrer">View product source</a> : null}
             </div>
           </div>
         </div>
       </section>
-
-      {hasSelectableVariants ? (
-        <section className="band alt">
-          <div className="section">
-            <PartVariantSelector variants={variants} />
-          </div>
-        </section>
-      ) : singleCheckoutVariant ? (
-        <section className="band alt">
-          <div className="section">
-            <div className="card part-variant-panel">
-              <div>
-                <p className="eyebrow">Checkout</p>
-                <h2>Ready to shop this part?</h2>
-              </div>
-              <div className="part-selected-variant">
-                <strong>{product.name}</strong>
-                {singleCheckoutVariant.priceLabel ? <span>{singleCheckoutVariant.priceLabel}</span> : null}
-                {!singleCheckoutVariantInStock ? <span>Out of stock</span> : null}
-              </div>
-              <ProductCheckoutButton disabled={!singleCheckoutVariantInStock} variantId={singleCheckoutVariant.id} />
-            </div>
-          </div>
-        </section>
-      ) : null}
 
       <section className="band">
         <div className="section">
@@ -247,15 +260,91 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
               ))}
             </div>
           ) : (
-            <div className="card">
-              <h2>No published builds are linked yet.</h2>
-              <p className="muted">Link this product to a verified build to show it here.</p>
+            <div className="part-empty-reference">
+              <div>
+                <h2>No verified builds are linked to this part yet.</h2>
+                <p className="muted">Once this part appears on a verified Tacoma build, those examples will show here.</p>
+              </div>
+              {displayProductCategory(product.category) === "Lighting" ? (
+                <Link className="button" href="/parts/packs/lighting">View Lighting Starter Pack</Link>
+              ) : null}
             </div>
           )}
         </div>
       </section>
     </>
   );
+}
+
+function sanitizeProductDescription(description: string | null) {
+  if (!description) return null;
+  return description
+    .replace(/\s*Installation instructions:\s*https?:\/\/\S+/i, "")
+    .trim();
+}
+
+function getInstallInstructionsUrl(product: ProductRow) {
+  if (product.slug === "morimoto-tacoma-xb-evo-amber-fog-lights") {
+    return "https://www.morimotohid.com/core/media/media.nl?id=22902275&c=5129608&h=fe0YsWOvVx2_rcZeb1rkCZ9pV35LBOO_UeeM3zyuRvLV7Kx4";
+  }
+
+  return null;
+}
+
+function getProductDetailContext(product: ProductRow) {
+  const details = [
+    { label: "Fits", value: getFitmentText(product) },
+    { label: "Category", value: displayProductCategory(product.category) },
+    { label: "Pack", value: displayProductCategory(product.category) === "Lighting" ? "Lighting Starter Pack" : "Parts catalog" },
+    { label: "Install", value: getInstallDifficulty(product) }
+  ];
+
+  return details.filter((detail) => detail.value);
+}
+
+function getFitmentText(product: ProductRow) {
+  if (product.slug?.includes("morimoto-tacoma")) return "2016–2023 Toyota Tacoma";
+  return "Verify against your Tacoma build";
+}
+
+function getInstallDifficulty(product: ProductRow) {
+  if (product.slug === "morimoto-tacoma-xb-led-bed-lights") return "Plug-and-play";
+  if (product.slug === "morimoto-tacoma-xb-evo-amber-fog-lights") return "Easy";
+  return "Check product notes";
+}
+
+function getBestForPills(product: ProductRow) {
+  if (product.slug === "morimoto-tacoma-xb-evo-amber-fog-lights") {
+    return ["Bad weather", "Daily driving", "OEM-plus", "Lighting pack"];
+  }
+
+  if (product.slug === "morimoto-tacoma-xb-led-bed-lights") {
+    return ["Camping", "Gear loading", "Daily utility", "Lighting pack"];
+  }
+
+  return [];
+}
+
+function getIncludedItems(product: ProductRow) {
+  if (product.slug === "morimoto-tacoma-xb-evo-amber-fog-lights") {
+    return [
+      "Pair of Morimoto XB Evo fog lights",
+      "Mounting screws",
+      "H11/H9/H8 connectors",
+      "Optional dielectric grease",
+      "Optional Yellow Lamin-X film"
+    ];
+  }
+
+  if (product.slug === "morimoto-tacoma-xb-led-bed-lights") {
+    return [
+      "Morimoto XB LED bed lights",
+      "Plug-and-play factory connectors",
+      "UV-coated polycarbonate lenses"
+    ];
+  }
+
+  return [];
 }
 
 function isUuid(value: string) {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getVariantAddOnPriceCents } from "@/lib/products";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
 
@@ -116,13 +117,30 @@ export async function POST(request: Request) {
   try {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
     const stripe = getStripe();
+    const greaseAddOnCents = getVariantAddOnPriceCents({
+      dielectricGreaseIncluded: variant.dielectric_grease_included ?? null
+    });
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       line_items: [
         {
           price: variant.stripe_price_id,
           quantity
-        }
+        },
+        ...(greaseAddOnCents ? [{
+          price_data: {
+            currency: "usd",
+            unit_amount: greaseAddOnCents,
+            product_data: {
+              name: "Dielectric grease add-on",
+              metadata: {
+                product_id: product.id,
+                variant_id: variant.id
+              }
+            }
+          },
+          quantity
+        }] : [])
       ],
       success_url: `${siteUrl}/success?type=product&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: buildId ? `${siteUrl}/builds/${buildId}` : `${siteUrl}/parts`,

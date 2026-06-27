@@ -4,6 +4,7 @@ import { ExpandableText } from "@/components/ExpandableText";
 import { cleanJoin, formatBooleanLabel, formatBuildTitle, formatRubbingLabel, formatSuspension, formatWheelTireCombo } from "@/lib/buildDisplay";
 import { getPublicSocialHandle, sanitizePublicBuildNotes } from "@/lib/buildPrivacy";
 import { getReviewedBuildSummary } from "@/lib/buildSummary";
+import { applyVariantAddOnPricing } from "@/lib/products";
 import { getStripePriceMap, resolveDisplayPrice } from "@/lib/stripePrices";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient, hasSupabaseServerEnv } from "@/lib/supabase/server";
@@ -204,26 +205,33 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
       if (!product) return null;
       const variants: BuildProductVariantData[] = (product.product_variants ?? [])
         .filter((variant) => variant.active)
-        .map((variant) => ({
-          id: variant.id,
-          variantName: variant.variant_name,
-          lightPattern: variant.light_pattern ?? variant.beam_pattern ?? null,
-          beamPattern: variant.beam_pattern ?? null,
-          lensColor: variant.lens_color ?? null,
-          harnessIncluded: Boolean(variant.harness_included),
-          dielectricGreaseIncluded: variant.dielectric_grease_included ?? null,
-          protectiveFilmIncluded: variant.protective_film_included ?? null,
-          size: variant.size ?? null,
-          finish: variant.finish ?? null,
-          sku: variant.sku ?? null,
-          supplierSku: variant.supplier_sku ?? null,
-          imageUrl: variant.image_url,
-          inventoryStatus: variant.inventory_status,
-          priceLabel: resolveDisplayPrice({
+        .map((variant) => {
+          const variantPrice = resolveDisplayPrice({
             stripePriceId: variant.stripe_price_id,
             priceCents: variant.price_cents
-          }, stripePrices).priceLabel
-        }));
+          }, stripePrices);
+
+          return applyVariantAddOnPricing({
+            id: variant.id,
+            variantName: variant.variant_name,
+            lightPattern: variant.light_pattern ?? variant.beam_pattern ?? null,
+            beamPattern: variant.beam_pattern ?? null,
+            lensColor: variant.lens_color ?? null,
+            harnessIncluded: Boolean(variant.harness_included),
+            dielectricGreaseIncluded: variant.dielectric_grease_included ?? null,
+            protectiveFilmIncluded: variant.protective_film_included ?? null,
+            size: variant.size ?? null,
+            finish: variant.finish ?? null,
+            sku: variant.sku ?? null,
+            supplierSku: variant.supplier_sku ?? null,
+            imageUrl: variant.image_url,
+            inventoryStatus: variant.inventory_status,
+            priceCents: variantPrice.priceCents,
+            priceLabel: variantPrice.priceLabel,
+            stripePriceId: variant.stripe_price_id,
+            active: variant.active
+          });
+        });
       const linkedVariant = variants.find((variant) => variant.id === link.variant_id);
 
       return {

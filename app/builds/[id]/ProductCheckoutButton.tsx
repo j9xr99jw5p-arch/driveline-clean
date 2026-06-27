@@ -8,10 +8,12 @@ const friendlyCheckoutError =
 export function ProductCheckoutButton({
   variantId,
   buildId,
+  label = "Shop these parts",
   disabled
 }: {
   variantId: string | null;
   buildId?: string;
+  label?: string;
   disabled?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
@@ -59,7 +61,7 @@ export function ProductCheckoutButton({
   return (
     <div className="product-checkout-control">
       <button className="button primary full" type="button" onClick={startCheckout} disabled={loading || disabled || !variantId}>
-        {loading ? "Opening checkout..." : "Shop these parts"}
+        {loading ? "Opening checkout..." : label}
       </button>
       {error ? <p className="fine">{error}</p> : null}
     </div>
