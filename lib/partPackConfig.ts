@@ -6,6 +6,7 @@ export type PartPack = {
   description: string;
   categories: string[];
   keywords: string[];
+  excludeKeywords?: string[];
 };
 
 export const partPacks: PartPack[] = [
@@ -21,7 +22,8 @@ export const partPacks: PartPack[] = [
     title: "Lighting Pack",
     description: "Simple lighting upgrades that improve visibility without going overboard.",
     categories: ["Lighting"],
-    keywords: ["ditch", "fog", "amber", "light bar", "bed lighting", "switch panel"]
+    keywords: ["ditch", "fog", "amber", "light bar", "bed lighting", "switch panel"],
+    excludeKeywords: ["auxbeam"]
   },
   {
     slug: "storage",
@@ -52,6 +54,9 @@ export function productMatchesPartPack(product: Pick<ProductSummary, "category" 
     product.description,
     product.category
   ].filter(Boolean).join(" ").toLowerCase();
+  const excluded = pack.excludeKeywords?.some((keyword) => searchableText.includes(keyword.toLowerCase())) ?? false;
+  if (excluded) return false;
+
   const keywordMatch = pack.keywords.some((keyword) => searchableText.includes(keyword.toLowerCase()));
 
   return categoryMatch || keywordMatch;

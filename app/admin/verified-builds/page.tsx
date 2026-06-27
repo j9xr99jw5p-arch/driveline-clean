@@ -534,7 +534,7 @@ async function generateOpenAiBuildSummary(build: VerifiedBuild) {
         input: [
           {
             role: "system",
-            content: "You write concise Toyota Tacoma fitment build explanations for admin review. Do not invent details. Return only the paragraph text."
+            content: "You write concise Toyota Tacoma fitment advice for real owners. Sound natural and practical, not like database output. Do not invent details. Return only the paragraph text."
           },
           {
             role: "user",

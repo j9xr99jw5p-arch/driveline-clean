@@ -1,4 +1,5 @@
 import "server-only";
+import { getPartPack, productMatchesPartPack } from "@/lib/partPackConfig";
 import { displayProductCategory, normalizeProductCategory } from "@/lib/products";
 import { starterPackDefinitions, type StarterPackDefinition } from "@/lib/starterPackDefinitions";
 import type { StarterPack, StarterPackProduct } from "@/lib/starterPackTypes";
@@ -153,7 +154,12 @@ function buildFallbackPacks(products: ProductRow[], stripePrices: Awaited<Return
       items: group.items,
       note: group.note,
       products: products
-        .filter((product) => group.matchCategories.some((category) => normalizeProductCategory(product.category) === normalizeProductCategory(category)))
+        .filter((product) => {
+          const pack = getPartPack(definition.slug);
+          if (pack) return productMatchesPartPack(mapProductForMatching(product), pack);
+
+          return group.matchCategories.some((category) => normalizeProductCategory(product.category) === normalizeProductCategory(category));
+        })
         .slice(0, 4)
         .map((product) => mapProduct(product, stripePrices, {
           note: group.note,
@@ -199,4 +205,13 @@ function mapProduct(product: ProductRow, stripePrices: Awaited<ReturnType<typeof
 
 function findDefinition(slug: string): StarterPackDefinition | undefined {
   return starterPackDefinitions.find((definition) => definition.slug === slug);
+}
+
+function mapProductForMatching(product: ProductRow) {
+  return {
+    name: product.name,
+    brand: product.brand,
+    description: product.description,
+    category: displayProductCategory(product.category)
+  };
 }
