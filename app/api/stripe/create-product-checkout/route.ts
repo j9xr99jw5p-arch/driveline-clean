@@ -12,6 +12,20 @@ const schema = z.object({
 const friendlyCheckoutError =
   "We’re having trouble opening checkout right now. We’re working to fix it as quickly as possible. Please try again in a moment.";
 
+type CheckoutVariant = {
+  id: string;
+  product_id: string;
+  variant_name: string;
+  light_pattern: string | null;
+  lens_color: string | null;
+  harness_included: boolean | null;
+  dielectric_grease_included?: boolean | null;
+  protective_film_included?: boolean | null;
+  stripe_price_id: string | null;
+  active: boolean;
+  inventory_status: string | null;
+};
+
 function devLog(message: string, details?: unknown) {
   if (process.env.NODE_ENV !== "production") console.log(message, details ?? "");
 }
@@ -28,12 +42,26 @@ export async function POST(request: Request) {
   devLog("Product checkout variantId:", variantId);
 
   const supabase = createSupabaseAdminClient();
-  const { data: variant, error } = await supabase
+  const variantResult = await supabase
     .from("product_variants")
-    .select("id, product_id, variant_name, light_pattern, lens_color, harness_included, stripe_price_id, active, inventory_status")
+    .select("id, product_id, variant_name, light_pattern, lens_color, harness_included, dielectric_grease_included, protective_film_included, stripe_price_id, active, inventory_status")
     .eq("id", variantId)
     .eq("active", true)
     .maybeSingle();
+  let variant = variantResult.data as CheckoutVariant | null;
+  let error = variantResult.error;
+
+  if (error?.code === "42703" || error?.code === "PGRST204") {
+    const fallbackVariantResult = await supabase
+      .from("product_variants")
+      .select("id, product_id, variant_name, light_pattern, lens_color, harness_included, stripe_price_id, active, inventory_status")
+      .eq("id", variantId)
+      .eq("active", true)
+      .maybeSingle();
+
+    variant = fallbackVariantResult.data as CheckoutVariant | null;
+    error = fallbackVariantResult.error;
+  }
 
   if (error) {
     console.error("Product checkout variant lookup failed", error);
@@ -108,6 +136,8 @@ export async function POST(request: Request) {
         light_pattern: variant.light_pattern ?? "",
         lens_color: variant.lens_color ?? "",
         harness_included: variant.harness_included ? "true" : "false",
+        dielectric_grease_included: "dielectric_grease_included" in variant && variant.dielectric_grease_included !== null ? variant.dielectric_grease_included ? "true" : "false" : "",
+        protective_film_included: "protective_film_included" in variant && variant.protective_film_included !== null ? variant.protective_film_included ? "true" : "false" : "",
         source: buildId ? "build_product_variant" : "parts_product_variant"
       }
     });

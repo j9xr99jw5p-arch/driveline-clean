@@ -43,6 +43,8 @@ type BuildProductVariant = {
   beam_pattern: string | null;
   lens_color: string | null;
   harness_included: boolean | null;
+  dielectric_grease_included?: boolean | null;
+  protective_film_included?: boolean | null;
   size: string | null;
   finish: string | null;
   sku: string | null;
@@ -101,6 +103,8 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
           beam_pattern,
           lens_color,
           harness_included,
+          dielectric_grease_included,
+          protective_film_included,
           size,
           finish,
           sku,
@@ -207,6 +211,8 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
           beamPattern: variant.beam_pattern ?? null,
           lensColor: variant.lens_color ?? null,
           harnessIncluded: Boolean(variant.harness_included),
+          dielectricGreaseIncluded: variant.dielectric_grease_included ?? null,
+          protectiveFilmIncluded: variant.protective_film_included ?? null,
           size: variant.size ?? null,
           finish: variant.finish ?? null,
           sku: variant.sku ?? null,

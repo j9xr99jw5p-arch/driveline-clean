@@ -14,17 +14,23 @@ export function PartVariantSelector({
   const [lightPattern, setLightPattern] = useState(firstVariant?.lightPattern ?? "");
   const [lensColor, setLensColor] = useState(firstVariant?.lensColor ?? "");
   const [harnessIncluded, setHarnessIncluded] = useState(firstVariant?.harnessIncluded ?? false);
+  const [dielectricGreaseIncluded, setDielectricGreaseIncluded] = useState(firstVariant?.dielectricGreaseIncluded ?? false);
+  const [protectiveFilmIncluded, setProtectiveFilmIncluded] = useState(firstVariant?.protectiveFilmIncluded ?? false);
   const [size, setSize] = useState(firstVariant?.size ?? "");
   const [finish, setFinish] = useState(firstVariant?.finish ?? "");
   const lightPatterns = uniqueOptions(activeVariants.map((variant) => variant.lightPattern));
   const lensColors = uniqueOptions(activeVariants.map((variant) => variant.lensColor));
   const harnessOptions = uniqueBooleans(activeVariants.map((variant) => variant.harnessIncluded));
+  const dielectricGreaseOptions = uniqueOptionalBooleans(activeVariants.map((variant) => variant.dielectricGreaseIncluded));
+  const protectiveFilmOptions = uniqueOptionalBooleans(activeVariants.map((variant) => variant.protectiveFilmIncluded));
   const sizes = uniqueOptions(activeVariants.map((variant) => variant.size));
   const finishes = uniqueOptions(activeVariants.map((variant) => variant.finish));
   const selectedVariant = activeVariants.find((variant) => (
     (!lightPatterns.length || variant.lightPattern === lightPattern) &&
     (!lensColors.length || variant.lensColor === lensColor) &&
     (!harnessOptions.length || variant.harnessIncluded === harnessIncluded) &&
+    (!dielectricGreaseOptions.length || variant.dielectricGreaseIncluded === dielectricGreaseIncluded) &&
+    (!protectiveFilmOptions.length || variant.protectiveFilmIncluded === protectiveFilmIncluded) &&
     (!sizes.length || variant.size === size) &&
     (!finishes.length || variant.finish === finish)
   )) ?? null;
@@ -50,6 +56,8 @@ export function PartVariantSelector({
             </select>
           </label>
         ) : null}
+        <BooleanVariantSelect label="Dielectric grease" options={dielectricGreaseOptions} value={dielectricGreaseIncluded} onChange={setDielectricGreaseIncluded} />
+        <BooleanVariantSelect label="Yellow protective film" options={protectiveFilmOptions} value={protectiveFilmIncluded} onChange={setProtectiveFilmIncluded} />
         <VariantSelect label="Size" options={sizes} value={size} onChange={setSize} />
         <VariantSelect label="Finish" options={finishes} value={finish} onChange={setFinish} />
       </div>
@@ -90,10 +98,39 @@ function VariantSelect({
   );
 }
 
+function BooleanVariantSelect({
+  label,
+  options,
+  value,
+  onChange
+}: {
+  label: string;
+  options: boolean[];
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  if (options.length <= 1) return null;
+
+  return (
+    <label className="field variant-select">
+      <span>{label}</span>
+      <select value={value ? "yes" : "no"} onChange={(event) => onChange(event.target.value === "yes")}>
+        {options.map((option) => (
+          <option key={option ? "yes" : "no"} value={option ? "yes" : "no"}>{option ? "Yes" : "No"}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function uniqueOptions(values: Array<string | null>) {
   return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
 }
 
 function uniqueBooleans(values: boolean[]) {
   return Array.from(new Set(values));
+}
+
+function uniqueOptionalBooleans(values: Array<boolean | null>) {
+  return Array.from(new Set(values.filter((value): value is boolean => typeof value === "boolean")));
 }

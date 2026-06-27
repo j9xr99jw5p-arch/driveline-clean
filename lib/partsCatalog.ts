@@ -58,7 +58,7 @@ export async function getPartsCatalog() {
     ? await Promise.all([
         supabase
           .from("product_variants")
-          .select("id, product_id, variant_name, light_pattern, beam_pattern, lens_color, harness_included, size, finish, sku, supplier_sku, stripe_price_id, image_url, active, inventory_status, price_cents")
+          .select("id, product_id, variant_name, light_pattern, beam_pattern, lens_color, harness_included, dielectric_grease_included, protective_film_included, size, finish, sku, supplier_sku, stripe_price_id, image_url, active, inventory_status, price_cents")
           .in("product_id", productIds)
           .eq("active", true),
         supabase

@@ -5,6 +5,8 @@ export type ProductVariantOption = {
   beamPattern: string | null;
   lensColor: string | null;
   harnessIncluded: boolean;
+  dielectricGreaseIncluded: boolean | null;
+  protectiveFilmIncluded: boolean | null;
   size: string | null;
   finish: string | null;
   sku: string | null;
@@ -61,6 +63,8 @@ export function mapVariant(row: ProductVariantRow): ProductVariantOption {
     beamPattern: row.beam_pattern ?? null,
     lensColor: row.lens_color ?? null,
     harnessIncluded: Boolean(row.harness_included),
+    dielectricGreaseIncluded: row.dielectric_grease_included ?? null,
+    protectiveFilmIncluded: row.protective_film_included ?? null,
     size: row.size ?? null,
     finish: row.finish ?? null,
     sku: row.sku ?? null,
@@ -122,6 +126,8 @@ function getVariantSignature(variant: ProductVariantOption) {
     variant.beamPattern,
     variant.lensColor,
     variant.harnessIncluded ? "harness" : "no-harness",
+    variant.dielectricGreaseIncluded === null ? null : variant.dielectricGreaseIncluded ? "dielectric-grease" : "no-dielectric-grease",
+    variant.protectiveFilmIncluded === null ? null : variant.protectiveFilmIncluded ? "protective-film" : "no-protective-film",
     variant.size,
     variant.finish,
     variant.sku,
@@ -198,6 +204,8 @@ export type ProductVariantRow = {
   beam_pattern?: string | null;
   lens_color: string | null;
   harness_included: boolean | null;
+  dielectric_grease_included?: boolean | null;
+  protective_film_included?: boolean | null;
   size?: string | null;
   finish?: string | null;
   sku?: string | null;

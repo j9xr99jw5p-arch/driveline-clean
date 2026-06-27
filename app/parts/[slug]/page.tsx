@@ -85,7 +85,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   const [initialVariantResult, initialLinkResult] = await Promise.all([
     supabase
       .from("product_variants")
-      .select("id, variant_name, light_pattern, beam_pattern, lens_color, harness_included, size, finish, sku, supplier_sku, stripe_price_id, image_url, active, inventory_status, price_cents")
+      .select("id, variant_name, light_pattern, beam_pattern, lens_color, harness_included, dielectric_grease_included, protective_film_included, size, finish, sku, supplier_sku, stripe_price_id, image_url, active, inventory_status, price_cents")
       .eq("product_id", product.id)
       .eq("active", true)
       .order("variant_name", { ascending: true }),
