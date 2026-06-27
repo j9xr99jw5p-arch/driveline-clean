@@ -13,6 +13,26 @@ export function formatBoolean(value: boolean | null | undefined) {
   return "Unknown";
 }
 
+export function formatBooleanLabel(value: boolean | null | undefined) {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  return "Not reported";
+}
+
+export function formatRubbingLabel(value: string | null | undefined) {
+  const normalized = value?.toLowerCase().trim();
+
+  if (!normalized || normalized === "none" || normalized === "no") {
+    return "None reported";
+  }
+
+  if (normalized === "minor") return "Minor rubbing reported";
+  if (normalized === "moderate") return "Moderate rubbing reported";
+  if (normalized === "severe") return "Severe rubbing reported";
+
+  return value?.trim() || "None reported";
+}
+
 export function formatBuildTitle(build: Pick<VerifiedBuild, "year" | "make" | "model" | "trim">) {
   return cleanJoin([build.year, build.make, build.model, build.trim]);
 }
@@ -55,9 +75,9 @@ export function formatRisk(value: string | null | undefined) {
 
 export function formatPrimaryFitmentDetails(build: VerifiedBuild) {
   return cleanJoin([
-    build.rubbing_severity,
-    `Trimming: ${formatBoolean(build.trimming_required)}`,
-    `Body mount chop: ${formatBoolean(build.body_mount_chop)}`
+    `Rubbing: ${formatRubbingLabel(build.rubbing_severity)}`,
+    `Trimming: ${formatBooleanLabel(build.trimming_required)}`,
+    `Body mount chop: ${formatBooleanLabel(build.body_mount_chop)}`
   ], " • ");
 }
 

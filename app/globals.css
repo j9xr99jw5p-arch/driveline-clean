@@ -611,6 +611,15 @@ p {
   line-height: 1.4;
 }
 
+.risk-definition-note {
+  max-width: 860px;
+  margin: -0.25rem auto 1.4rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  text-align: center;
+}
+
 .build-spec-grid {
   display: grid;
   gap: 0.45rem;

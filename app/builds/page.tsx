@@ -36,11 +36,11 @@ export default async function BuildsPage() {
           <h1>Verified Tacoma Builds</h1>
           <p className="lead">Review real-world Tacoma wheel, tire, lift, rubbing, trimming, and drivability outcomes from published builds.</p>
         </div>
-        <div className="detail-grid" style={{ marginBottom: 28 }}>
-          <div className="detail-field"><span>01 Submitted data</span><strong>Owner-provided wheel, tire, lift, and suspension details</strong></div>
-          <div className="detail-field"><span>02 Fitment review</span><strong>Rubbing, trimming, and risk classifications stay visible</strong></div>
-          <div className="detail-field"><span>03 Public reference</span><strong>Published builds become a cleaner buying reference</strong></div>
-        </div>
+        <p className="risk-definition-note">
+          Risk labels are based on real-world clearance needs. Low risk means little to no trimming or rubbing.
+          Medium risk usually means some trimming and possible minor rubbing. High risk means the setup needs
+          major trimming, custom clearance work, or other modifications to run properly.
+        </p>
         {(builds ?? []).length ? (
           <BuildsGrid builds={builds as VerifiedBuild[]} />
         ) : (

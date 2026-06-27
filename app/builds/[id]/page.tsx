@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { BuildPhotoCarousel, type BuildPhoto } from "@/components/BuildPhotoCarousel";
 import { ExpandableText } from "@/components/ExpandableText";
-import { cleanJoin, formatBoolean, formatBuildTitle, formatSuspension, formatWheelTireCombo } from "@/lib/buildDisplay";
+import { cleanJoin, formatBooleanLabel, formatBuildTitle, formatRubbingLabel, formatSuspension, formatWheelTireCombo } from "@/lib/buildDisplay";
 import { getPublicSocialHandle, sanitizePublicBuildNotes } from "@/lib/buildPrivacy";
 import { getReviewedBuildSummary } from "@/lib/buildSummary";
 import { getStripePriceMap, resolveDisplayPrice } from "@/lib/stripePrices";
@@ -251,9 +251,9 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
               ["Wheel / tire", formatWheelTireCombo(typedBuild)],
               ["Suspension", formatSuspension(typedBuild)],
               ["Cab / Bed", cleanJoin([typedBuild.cab, typedBuild.bed], " / ")],
-              ["Rubbing", typedBuild.rubbing_severity],
-              ["Trimming", formatBoolean(typedBuild.trimming_required)],
-              ["Body mount chop", formatBoolean(typedBuild.body_mount_chop)],
+              ["Rubbing", formatRubbingLabel(typedBuild.rubbing_severity)],
+              ["Trimming", formatBooleanLabel(typedBuild.trimming_required)],
+              ["Body mount chop", formatBooleanLabel(typedBuild.body_mount_chop)],
               ["Lighting", typedBuild.lighting_upgrades],
               ["Favorite mods", typedBuild.favorite_modifications],
               ["Social", socialHandle]

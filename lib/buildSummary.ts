@@ -107,22 +107,24 @@ function createOpeningSentence(title: string, setupParts: string[]) {
 }
 
 function createFitmentResultSentence(build: VerifiedBuild) {
-  const rubbing = build.rubbing_severity ? `${build.rubbing_severity.toLowerCase()} rubbing` : "no clear rubbing note";
+  const rubbing = formatRubbingSummaryPhrase(build.rubbing_severity);
   const risk = build.fitment_risk ? `${build.fitment_risk} fitment risk` : "an unknown fitment risk";
   const reason = describeRiskReason(build);
 
   if (build.fitment_risk === "low") {
-    return `The owner noted ${rubbing}, and the setup lands in the ${risk} range because ${reason}.`;
+    return `${rubbing}, and the setup lands in the ${risk} range because ${reason}.`;
   }
 
   if (build.fitment_risk === "medium") {
-    return `In real-world use, the important note is ${rubbing}; that puts this in the ${risk} range because ${reason}.`;
+    return `In real-world use, ${rubbing.toLowerCase()}; that puts this in the ${risk} range because ${reason}.`;
   }
 
-  return `The fitment story here is more demanding: ${rubbing}, with ${risk} because ${reason}.`;
+  return `The fitment story here is more demanding: ${rubbing.toLowerCase()}, with ${risk} because ${reason}.`;
 }
 
 function describeRiskReason(build: VerifiedBuild) {
+  const rubbing = normalizeRubbingValue(build.rubbing_severity);
+
   if (build.trimming_required && build.body_mount_chop) {
     return "it needed both trimming and cab-mount clearance work to behave correctly";
   }
@@ -135,11 +137,27 @@ function describeRiskReason(build: VerifiedBuild) {
     return "cab-mount clearance became part of making the setup work";
   }
 
-  if (build.rubbing_severity && build.rubbing_severity.toLowerCase() !== "none") {
+  if (rubbing && rubbing !== "none" && rubbing !== "no") {
     return "there is still some rubbing to account for even without major clearance notes";
   }
 
   return "the owner did not report major clearance work or serious rubbing";
+}
+
+function normalizeRubbingValue(value: string | null | undefined) {
+  return value?.toLowerCase().trim() || null;
+}
+
+function formatRubbingSummaryPhrase(value: string | null | undefined) {
+  const normalized = normalizeRubbingValue(value);
+
+  if (!normalized) return "The owner did not leave a rubbing note";
+  if (normalized === "none" || normalized === "no") return "The owner reported no rubbing";
+  if (normalized === "minor") return "The owner reported minor rubbing";
+  if (normalized === "moderate") return "The owner reported moderate rubbing";
+  if (normalized === "severe") return "The owner reported severe rubbing";
+
+  return `The owner described the rubbing as ${value?.trim()}`;
 }
 
 function createCopyAdviceSentence(build: VerifiedBuild) {

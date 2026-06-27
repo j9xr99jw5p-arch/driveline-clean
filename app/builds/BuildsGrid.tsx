@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { BuildCard } from "@/components/BuildCard";
+import { formatRubbingLabel } from "@/lib/buildDisplay";
 import type { VerifiedBuild } from "@/lib/types";
 
 type FilterState = {
@@ -61,7 +62,7 @@ export function BuildsGrid({ builds }: { builds: VerifiedBuild[] }) {
           ]} />
           <FilterSelect label="Rubbing" value={filters.rubbing} onChange={(rubbing) => setFilters((current) => ({ ...current, rubbing }))} options={[
             { value: "all", label: "All outcomes" },
-            ...options.rubbing.map((rubbing) => ({ value: rubbing, label: rubbing }))
+            ...options.rubbing.map((rubbing) => ({ value: rubbing, label: formatRubbingLabel(rubbing) }))
           ]} />
         </div>
         <div className="filter-actions">
