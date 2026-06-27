@@ -5,12 +5,12 @@ import { BuildCard } from "@/components/BuildCard";
 import { ExpandableText } from "@/components/ExpandableText";
 import {
   displayProductCategory,
-  getProductPriceLabel,
   getSinglePurchasableVariant,
   hasRealProductVariants,
   mapVariant,
   type ProductVariantRow
 } from "@/lib/products";
+import { getStripePriceMap, resolveDisplayPrice } from "@/lib/stripePrices";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { VerifiedBuild } from "@/lib/types";
 import { PartVariantSelector } from "./PartVariantSelector";
@@ -128,21 +128,42 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   if (variantError) console.error("Part detail variants query failed:", variantError);
   if (linkError) console.error("Part detail build links query failed:", linkError);
 
-  const variants = (variantRows ?? []).map(mapVariant);
+  const stripePrices = await getStripePriceMap([
+    product.stripe_price_id,
+    ...(variantRows ?? []).map((variant) => variant.stripe_price_id)
+  ]);
+  const variants = (variantRows ?? []).map((variantRow) => {
+    const variant = mapVariant(variantRow);
+    const variantPrice = resolveDisplayPrice({
+      stripePriceId: variant.stripePriceId,
+      priceCents: variant.priceCents
+    }, stripePrices);
+
+    return {
+      ...variant,
+      priceCents: variantPrice.priceCents,
+      priceLabel: variantPrice.priceLabel,
+      priceSource: variantPrice.priceSource
+    };
+  });
   const hasSelectableVariants = hasRealProductVariants(variants);
   const singleCheckoutVariant = !hasSelectableVariants ? getSinglePurchasableVariant(variants) : null;
   const singleCheckoutVariantInStock = singleCheckoutVariant ? singleCheckoutVariant.inventoryStatus !== "out_of_stock" : false;
-  const priceLabel = getProductPriceLabel(product.price_cents, variants);
+  const firstVariantPrice = variants.find((variant) => variant.priceSource !== "unavailable") ?? null;
+  const displayPrice = resolveDisplayPrice({
+    stripePriceId: product.stripe_price_id,
+    priceCents: product.price_cents ?? firstVariantPrice?.priceCents ?? null
+  }, stripePrices);
+  const priceLabel = displayPrice.priceLabel;
   const productImageUrls = getProductImageUrls(product);
   const primaryImageUrl = productImageUrls[0] ?? null;
-  const externalProductUrl = product.affiliate_url ?? product.order_url ?? null;
   const buildLinks = (linkRows ?? [])
     .map((link) => {
       const build = Array.isArray(link.verified_builds) ? link.verified_builds[0] : link.verified_builds;
       const variant = variants.find((option) => option.id === link.variant_id);
       return build ? { build, variant, notes: link.notes } : null;
     })
-    .filter((link): link is { build: VerifiedBuild; variant: ReturnType<typeof mapVariant> | undefined; notes: string | null } => Boolean(link));
+    .filter((link): link is NonNullable<typeof link> => Boolean(link));
 
   return (
     <>
@@ -174,9 +195,6 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
             {priceLabel ? <p className="part-detail-price">{priceLabel}</p> : null}
             {product.description ? <ExpandableText text={product.description} className="lead part-description" /> : null}
             <div className="actions" style={{ justifyContent: "flex-start" }}>
-              {externalProductUrl ? (
-                <Link className="button primary" href={externalProductUrl} target="_blank" rel="noreferrer">View Product</Link>
-              ) : null}
               <Link className="button" href="/parts">Back to parts</Link>
             </div>
           </div>

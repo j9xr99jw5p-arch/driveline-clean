@@ -163,7 +163,7 @@ export function StarterPackCheckout({ packs }: { packs: StarterPack[] }) {
                             <strong>{product.name}</strong>
                             <span className="muted">{[product.brand, product.category].filter(Boolean).join(" / ")}</span>
                             {product.note ? <span className="starter-pack-item-note">{product.note}</span> : null}
-                            <span className="starter-pack-item-price">{product.priceLabel ?? "Price confirmed at checkout"}</span>
+                            <span className="starter-pack-item-price">{product.priceLabel ?? "Price unavailable"}</span>
                           </span>
                         </label>
                         {selectedProduct ? (

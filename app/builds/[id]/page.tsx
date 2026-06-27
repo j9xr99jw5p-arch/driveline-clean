@@ -4,6 +4,7 @@ import { ExpandableText } from "@/components/ExpandableText";
 import { cleanJoin, formatBoolean, formatBuildTitle, formatSuspension, formatWheelTireCombo } from "@/lib/buildDisplay";
 import { getPublicSocialHandle, sanitizePublicBuildNotes } from "@/lib/buildPrivacy";
 import { getReviewedBuildSummary } from "@/lib/buildSummary";
+import { getStripePriceMap, resolveDisplayPrice } from "@/lib/stripePrices";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient, hasSupabaseServerEnv } from "@/lib/supabase/server";
 import type { VerifiedBuild } from "@/lib/types";
@@ -51,14 +52,6 @@ type BuildProductVariant = {
   active: boolean;
   inventory_status: string | null;
   price_cents: number | null;
-};
-
-const priceLabelsByStripePriceId: Record<string, string> = {
-  price_1TkUDzAxOgxntpwRJ97keK60: "$2,519.95",
-  price_1TkUmQAxOgxntpwRkHxLMzbz: "$89.95",
-  price_1TkVCWAxOgxntpwR73QN8vJo: "$209.99",
-  price_1TkVa0AxOgxntpwR6e15v37S: "$509.99",
-  price_1TlghAAxOgxntpwRkCG6aHX4: "$295.99"
 };
 
 export default async function BuildDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -196,7 +189,12 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
   const socialHandle = getPublicSocialHandle(typedBuild);
   const publicNotes = sanitizePublicBuildNotes(typedBuild.notes);
   const buildSummary = getReviewedBuildSummary(typedBuild);
-  const products = ((productLinks ?? []) as BuildProductRow[])
+  const rawProductLinks = (productLinks ?? []) as BuildProductRow[];
+  const stripePrices = await getStripePriceMap(rawProductLinks.flatMap((link) => {
+    const product = Array.isArray(link.products) ? link.products[0] : link.products;
+    return product?.product_variants?.map((variant) => variant.stripe_price_id) ?? [];
+  }));
+  const products = rawProductLinks
     .map((link) => {
       const product = Array.isArray(link.products) ? link.products[0] : link.products;
       if (!product) return null;
@@ -215,7 +213,10 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
           supplierSku: variant.supplier_sku ?? null,
           imageUrl: variant.image_url,
           inventoryStatus: variant.inventory_status,
-          priceLabel: variant.price_cents ? formatCents(variant.price_cents) : priceLabelsByStripePriceId[variant.stripe_price_id] ?? null
+          priceLabel: resolveDisplayPrice({
+            stripePriceId: variant.stripe_price_id,
+            priceCents: variant.price_cents
+          }, stripePrices).priceLabel
         }));
       const linkedVariant = variants.find((variant) => variant.id === link.variant_id);
 
@@ -227,7 +228,6 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
         category: product.category,
         description: product.description,
         imageUrl: product.image_url,
-        orderUrl: "order_url" in product ? product.order_url : null,
         linkedVariantLabel: linkedVariant ? linkedVariant.variantName : null,
         linkNotes: link.notes,
         variants
@@ -279,11 +279,4 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
       ) : null}
     </>
   );
-}
-
-function formatCents(cents: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD"
-  }).format(cents / 100);
 }

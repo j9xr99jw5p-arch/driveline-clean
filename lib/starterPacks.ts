@@ -1,7 +1,8 @@
 import "server-only";
-import { displayProductCategory, formatCents, normalizeProductCategory } from "@/lib/products";
+import { displayProductCategory, normalizeProductCategory } from "@/lib/products";
 import { starterPackDefinitions, type StarterPackDefinition } from "@/lib/starterPackDefinitions";
 import type { StarterPack, StarterPackProduct } from "@/lib/starterPackTypes";
+import { getStripePriceMap, resolveDisplayPrice } from "@/lib/stripePrices";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type ProductRow = {
@@ -13,6 +14,7 @@ type ProductRow = {
   description: string | null;
   image_url: string | null;
   price_cents?: number | null;
+  stripe_price_id?: string | null;
   active: boolean;
 };
 
@@ -58,6 +60,7 @@ export async function getStarterPacks() {
           description,
           image_url,
           price_cents,
+          stripe_price_id,
           active
         )
       )
@@ -67,7 +70,13 @@ export async function getStarterPacks() {
     .order("sort_order", { referencedTable: "starter_pack_items", ascending: true });
 
   if (!packError && packRows?.length) {
-    return buildPacksFromRows(packRows as StarterPackRow[]);
+    const products = (packRows as StarterPackRow[])
+      .flatMap((pack) => pack.starter_pack_items ?? [])
+      .map((item) => Array.isArray(item.products) ? item.products[0] : item.products)
+      .filter((product): product is ProductRow => Boolean(product));
+    const stripePrices = await getStripePriceMap(products.map((product) => product.stripe_price_id));
+
+    return buildPacksFromRows(packRows as StarterPackRow[], stripePrices);
   }
 
   if (packError && packError.code !== "42P01" && packError.code !== "PGRST200" && packError.code !== "PGRST205") {
@@ -76,27 +85,30 @@ export async function getStarterPacks() {
 
   const { data: products, error: productError } = await supabase
     .from("products")
-    .select("id, slug, name, brand, category, description, image_url, price_cents, active")
+    .select("id, slug, name, brand, category, description, image_url, price_cents, stripe_price_id, active")
     .eq("active", true)
     .order("category", { ascending: true })
     .order("name", { ascending: true });
 
   if (productError) {
     console.error("Starter pack fallback product query failed:", productError);
-    return buildFallbackPacks([]);
+    return buildFallbackPacks([], new Map());
   }
 
-  return buildFallbackPacks((products ?? []) as ProductRow[]);
+  const productRows = (products ?? []) as ProductRow[];
+  const stripePrices = await getStripePriceMap(productRows.map((product) => product.stripe_price_id));
+
+  return buildFallbackPacks(productRows, stripePrices);
 }
 
-function buildPacksFromRows(rows: StarterPackRow[]): StarterPack[] {
+function buildPacksFromRows(rows: StarterPackRow[], stripePrices: Awaited<ReturnType<typeof getStripePriceMap>>): StarterPack[] {
   return rows.map((row) => {
     const definition = findDefinition(row.slug);
     const products = (row.starter_pack_items ?? [])
       .map((item) => {
         const product = Array.isArray(item.products) ? item.products[0] : item.products;
         if (!product?.active) return null;
-        return mapProduct(product, {
+        return mapProduct(product, stripePrices, {
           note: item.note,
           required: Boolean(item.required),
           defaultSelected: item.default_selected ?? true,
@@ -129,7 +141,7 @@ function buildPacksFromRows(rows: StarterPackRow[]): StarterPack[] {
   });
 }
 
-function buildFallbackPacks(products: ProductRow[]): StarterPack[] {
+function buildFallbackPacks(products: ProductRow[], stripePrices: Awaited<ReturnType<typeof getStripePriceMap>>): StarterPack[] {
   return starterPackDefinitions.map((definition) => ({
     slug: definition.slug,
     name: definition.name,
@@ -143,7 +155,7 @@ function buildFallbackPacks(products: ProductRow[]): StarterPack[] {
       products: products
         .filter((product) => group.matchCategories.some((category) => normalizeProductCategory(product.category) === normalizeProductCategory(category)))
         .slice(0, 4)
-        .map((product) => mapProduct(product, {
+        .map((product) => mapProduct(product, stripePrices, {
           note: group.note,
           required: false,
           defaultSelected: true,
@@ -154,13 +166,18 @@ function buildFallbackPacks(products: ProductRow[]): StarterPack[] {
   }));
 }
 
-function mapProduct(product: ProductRow, options: {
+function mapProduct(product: ProductRow, stripePrices: Awaited<ReturnType<typeof getStripePriceMap>>, options: {
   note: string | null;
   required: boolean;
   defaultSelected: boolean;
   recommendedQuantity: number;
   budgetTier: string | null;
 }): StarterPackProduct {
+  const price = resolveDisplayPrice({
+    stripePriceId: product.stripe_price_id,
+    priceCents: product.price_cents
+  }, stripePrices);
+
   return {
     id: product.id,
     slug: product.slug ?? product.id,
@@ -169,8 +186,9 @@ function mapProduct(product: ProductRow, options: {
     category: displayProductCategory(product.category),
     description: product.description,
     imageUrl: product.image_url,
-    priceCents: product.price_cents ?? null,
-    priceLabel: formatCents(product.price_cents),
+    priceCents: price.priceCents,
+    priceLabel: price.priceLabel,
+    priceSource: price.priceSource,
     note: options.note,
     required: options.required,
     defaultSelected: options.required || options.defaultSelected,

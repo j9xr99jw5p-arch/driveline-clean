@@ -78,7 +78,7 @@ export async function POST(request: Request) {
 
   const unpricedProduct = productRows.find((product) => !product.stripe_price_id && !isPositiveCents(product.price_cents));
   if (unpricedProduct) {
-    return NextResponse.json({ error: `${unpricedProduct.name} needs a price before checkout.` }, { status: 409 });
+    return NextResponse.json({ error: "One or more selected products are missing pricing. Please remove them or try again later." }, { status: 409 });
   }
 
   try {

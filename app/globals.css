@@ -1713,6 +1713,15 @@ p {
   line-height: 1.18;
 }
 
+.part-card-description {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
 .part-card-meta {
   display: flex;
   justify-content: space-between;

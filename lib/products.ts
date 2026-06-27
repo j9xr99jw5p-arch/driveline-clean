@@ -15,6 +15,7 @@ export type ProductVariantOption = {
   inventoryStatus: string | null;
   priceCents: number | null;
   priceLabel: string | null;
+  priceSource?: "stripe" | "database" | "unavailable";
 };
 
 export type ProductSummary = {
@@ -28,11 +29,10 @@ export type ProductSummary = {
   imageUrls: string[];
   priceCents: number | null;
   priceLabel: string | null;
-  affiliateUrl: string | null;
-  orderUrl: string | null;
   stripePriceId: string | null;
   buildCount: number;
   variants: ProductVariantOption[];
+  priceSource?: "stripe" | "database" | "unavailable";
 };
 
 const placeholderVariantNames = new Set([

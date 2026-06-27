@@ -13,7 +13,6 @@ export type BuildProductCardData = {
   category: string;
   description: string | null;
   imageUrl: string | null;
-  orderUrl: string | null;
   linkedVariantLabel: string | null;
   linkNotes: string | null;
   variants: BuildProductVariantData[];

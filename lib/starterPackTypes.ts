@@ -8,6 +8,7 @@ export type StarterPackProduct = {
   imageUrl: string | null;
   priceCents: number | null;
   priceLabel: string | null;
+  priceSource?: "stripe" | "database" | "unavailable";
   note: string | null;
   required: boolean;
   defaultSelected: boolean;

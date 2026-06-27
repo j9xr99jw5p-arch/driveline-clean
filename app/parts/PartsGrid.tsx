@@ -95,6 +95,7 @@ export function PartCatalogCard({ product }: { product: ProductSummary }) {
       <div className="part-card-body">
         <p className="eyebrow">{[product.brand, product.category].filter(Boolean).join(" / ")}</p>
         <h3>{product.name}</h3>
+        {product.description ? <p className="muted part-card-description">{product.description}</p> : null}
         <div className="part-card-meta">
           {product.priceLabel ? <strong>{product.priceLabel}</strong> : null}
           <span>{product.buildCount} verified {product.buildCount === 1 ? "build" : "builds"}</span>
