@@ -27,7 +27,6 @@ type ProductRow = {
   image_url: string | null;
   price_cents?: number | null;
   affiliate_url?: string | null;
-  order_url?: string | null;
   install_url?: string | null;
   specs?: unknown;
   stripe_price_id: string | null;
@@ -46,7 +45,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   const supabase = createSupabaseAdminClient();
   const productResult = await supabase
     .from("products")
-    .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, order_url, install_url, specs, stripe_price_id, product_images(url, sort_order)")
+    .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, install_url, specs, stripe_price_id, product_images(url, sort_order)")
     .eq("active", true)
     .eq("slug", slug)
     .maybeSingle();
@@ -56,7 +55,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   if (!product && isUuid(slug)) {
     const idResult = await supabase
       .from("products")
-      .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, order_url, install_url, specs, stripe_price_id, product_images(url, sort_order)")
+      .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, install_url, specs, stripe_price_id, product_images(url, sort_order)")
       .eq("active", true)
       .eq("id", slug)
       .maybeSingle();
@@ -68,7 +67,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   if (productError?.code === "42703" || productError?.code === "PGRST200" || productError?.code === "PGRST204") {
     const fallbackQuery = supabase
       .from("products")
-      .select("id, slug, name, brand, category, description, image_url, order_url, stripe_price_id")
+      .select("id, slug, name, brand, category, description, image_url, stripe_price_id")
       .eq("active", true);
     const fallback = isUuid(slug)
       ? await fallbackQuery.eq("id", slug).maybeSingle()
@@ -238,7 +237,6 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
             <div className="actions part-secondary-actions">
               <Link className="button" href="/parts">Back to parts</Link>
               {installInstructionsUrl ? <a className="button" href={installInstructionsUrl} target="_blank" rel="noreferrer">View install guide</a> : null}
-              {product.order_url ? <a className="button" href={product.order_url} target="_blank" rel="noreferrer">View product source</a> : null}
             </div>
           </div>
         </div>
