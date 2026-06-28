@@ -29,7 +29,7 @@ type ProductRow = {
   affiliate_url?: string | null;
   order_url?: string | null;
   install_url?: string | null;
-  specs?: Record<string, unknown> | null;
+  specs?: unknown;
   stripe_price_id: string | null;
   product_images?: Array<{ url: string; sort_order: number | null }> | null;
 };
@@ -214,19 +214,6 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
                 {getBestForPills(product).map((pill) => <span key={pill}>{pill}</span>)}
               </div>
             ) : null}
-            {productSpecs.length ? (
-              <section className="part-specs-panel" aria-label="Product specs">
-                <h2>Product specs</h2>
-                <dl>
-                  {productSpecs.map(([label, value]) => (
-                    <div className="part-spec-row" key={label}>
-                      <dt>{label}</dt>
-                      <dd>{value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </section>
-            ) : null}
             {hasSelectableVariants ? (
               <PartVariantSelector compact variants={variants} />
             ) : singleCheckoutVariant ? (
@@ -239,6 +226,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
                 <ProductCheckoutButton disabled={!singleCheckoutVariantInStock} label="Buy this part" variantId={singleCheckoutVariant.id} />
               </div>
             ) : null}
+            {productSpecs.length ? <ProductSpecs specs={productSpecs} /> : null}
             {!hasSpec(product, "Included") && getIncludedItems(product).length ? (
               <div className="part-included-box">
                 <h2>What’s included</h2>
@@ -322,16 +310,59 @@ function getProductDetailContext(product: ProductRow) {
 }
 
 function getProductSpecs(product: ProductRow) {
-  const specs = product.specs;
-  if (!specs || Array.isArray(specs) || typeof specs !== "object") return [];
+  const specs = normalizeSpecs(product.specs);
+  if (isEmptySpecs(specs)) return [];
 
   return Object.entries(specs)
     .map(([label, value]) => [label, formatSpecValue(value)] as const)
     .filter(([, value]) => Boolean(value));
 }
 
+function ProductSpecs({ specs }: { specs: Array<readonly [string, string]> }) {
+  if (!specs.length) return null;
+
+  return (
+    <section className="part-specs-panel" aria-label="Product specs">
+      <h2>Product specs</h2>
+      <dl>
+        {specs.map(([label, value]) => (
+          <div className="part-spec-row" key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+function isEmptySpecs(specs: unknown) {
+  return Object.keys(normalizeSpecs(specs)).length === 0;
+}
+
+function normalizeSpecs(specs: unknown): Record<string, unknown> {
+  if (!specs) return {};
+
+  if (typeof specs === "string") {
+    try {
+      const parsed = JSON.parse(specs);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return {};
+    }
+  }
+
+  if (typeof specs === "object" && !Array.isArray(specs)) {
+    return specs as Record<string, unknown>;
+  }
+
+  return {};
+}
+
 function formatSpecValue(value: unknown): string {
-  if (value === null || value === undefined) return "";
+  if (value === null || value === undefined || value === "") return "Not listed";
   if (Array.isArray(value)) return value.map(formatSpecValue).filter(Boolean).join(", ");
   if (typeof value === "object") return Object.entries(value)
     .map(([key, nestedValue]) => `${key}: ${formatSpecValue(nestedValue)}`)
@@ -341,8 +372,8 @@ function formatSpecValue(value: unknown): string {
 }
 
 function hasSpec(product: ProductRow, label: string) {
-  const specs = product.specs;
-  if (!specs || Array.isArray(specs) || typeof specs !== "object") return false;
+  const specs = normalizeSpecs(product.specs);
+  if (isEmptySpecs(specs)) return false;
 
   return Object.keys(specs).some((key) => key.toLowerCase().trim() === label.toLowerCase().trim());
 }
