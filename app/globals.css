@@ -1846,6 +1846,50 @@ p {
   font-weight: 800;
 }
 
+.part-specs-panel {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.9rem 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.part-specs-panel h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.part-specs-panel dl {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.part-spec-row {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 0.42fr) minmax(0, 1fr);
+  gap: 0.85rem;
+  padding: 0.45rem 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.part-spec-row:first-child {
+  border-top: 0;
+}
+
+.part-spec-row dt {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.part-spec-row dd {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
 .part-variant-panel {
   display: grid;
   gap: 1rem;
@@ -2327,6 +2371,7 @@ p {
   }
 
   .part-context-grid,
+  .part-spec-row,
   .variant-option-card {
     grid-template-columns: 1fr;
   }

@@ -28,6 +28,8 @@ type ProductRow = {
   price_cents?: number | null;
   affiliate_url?: string | null;
   order_url?: string | null;
+  install_url?: string | null;
+  specs?: Record<string, unknown> | null;
   stripe_price_id: string | null;
   product_images?: Array<{ url: string; sort_order: number | null }> | null;
 };
@@ -44,7 +46,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   const supabase = createSupabaseAdminClient();
   const productResult = await supabase
     .from("products")
-    .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, order_url, stripe_price_id, product_images(url, sort_order)")
+    .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, order_url, install_url, specs, stripe_price_id, product_images(url, sort_order)")
     .eq("active", true)
     .eq("slug", slug)
     .maybeSingle();
@@ -54,7 +56,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   if (!product && isUuid(slug)) {
     const idResult = await supabase
       .from("products")
-      .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, order_url, stripe_price_id, product_images(url, sort_order)")
+      .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, order_url, install_url, specs, stripe_price_id, product_images(url, sort_order)")
       .eq("active", true)
       .eq("id", slug)
       .maybeSingle();
@@ -64,12 +66,13 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   }
 
   if (productError?.code === "42703" || productError?.code === "PGRST200" || productError?.code === "PGRST204") {
-    const fallback = await supabase
+    const fallbackQuery = supabase
       .from("products")
-      .select("id, name, brand, category, description, image_url, order_url, stripe_price_id")
-      .eq("active", true)
-      .eq("id", slug)
-      .maybeSingle();
+      .select("id, slug, name, brand, category, description, image_url, order_url, stripe_price_id")
+      .eq("active", true);
+    const fallback = isUuid(slug)
+      ? await fallbackQuery.eq("id", slug).maybeSingle()
+      : await fallbackQuery.eq("slug", slug).maybeSingle();
 
     product = fallback.data as ProductRow | null;
     productError = fallback.error;
@@ -159,6 +162,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   const primaryImageUrl = productImageUrls[0] ?? null;
   const cleanDescription = sanitizeProductDescription(product.description);
   const installInstructionsUrl = getInstallInstructionsUrl(product);
+  const productSpecs = getProductSpecs(product);
   const productDetails = getProductDetailContext(product);
   const buildLinks = (linkRows ?? [])
     .map((link) => {
@@ -210,6 +214,19 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
                 {getBestForPills(product).map((pill) => <span key={pill}>{pill}</span>)}
               </div>
             ) : null}
+            {productSpecs.length ? (
+              <section className="part-specs-panel" aria-label="Product specs">
+                <h2>Product specs</h2>
+                <dl>
+                  {productSpecs.map(([label, value]) => (
+                    <div className="part-spec-row" key={label}>
+                      <dt>{label}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            ) : null}
             {hasSelectableVariants ? (
               <PartVariantSelector compact variants={variants} />
             ) : singleCheckoutVariant ? (
@@ -222,7 +239,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
                 <ProductCheckoutButton disabled={!singleCheckoutVariantInStock} label="Buy this part" variantId={singleCheckoutVariant.id} />
               </div>
             ) : null}
-            {getIncludedItems(product).length ? (
+            {!hasSpec(product, "Included") && getIncludedItems(product).length ? (
               <div className="part-included-box">
                 <h2>What’s included</h2>
                 <ul>
@@ -232,7 +249,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
             ) : null}
             <div className="actions part-secondary-actions">
               <Link className="button" href="/parts">Back to parts</Link>
-              {installInstructionsUrl ? <a className="button" href={installInstructionsUrl} target="_blank" rel="noreferrer">View install instructions</a> : null}
+              {installInstructionsUrl ? <a className="button" href={installInstructionsUrl} target="_blank" rel="noreferrer">View install guide</a> : null}
               {product.order_url ? <a className="button" href={product.order_url} target="_blank" rel="noreferrer">View product source</a> : null}
             </div>
           </div>
@@ -284,6 +301,8 @@ function sanitizeProductDescription(description: string | null) {
 }
 
 function getInstallInstructionsUrl(product: ProductRow) {
+  if (product.install_url) return product.install_url;
+
   if (product.slug === "morimoto-tacoma-xb-evo-amber-fog-lights") {
     return "https://www.morimotohid.com/core/media/media.nl?id=22902275&c=5129608&h=fe0YsWOvVx2_rcZeb1rkCZ9pV35LBOO_UeeM3zyuRvLV7Kx4";
   }
@@ -293,13 +312,39 @@ function getInstallInstructionsUrl(product: ProductRow) {
 
 function getProductDetailContext(product: ProductRow) {
   const details = [
-    { label: "Fits", value: getFitmentText(product) },
+    { label: "Fits", value: hasSpec(product, "Fitment") ? null : getFitmentText(product) },
     { label: "Category", value: displayProductCategory(product.category) },
     { label: "Pack", value: displayProductCategory(product.category) === "Lighting" ? "Lighting Starter Pack" : "Parts catalog" },
-    { label: "Install", value: getInstallDifficulty(product) }
+    { label: "Install", value: hasSpec(product, "Install") ? null : getInstallDifficulty(product) }
   ];
 
   return details.filter((detail) => detail.value);
+}
+
+function getProductSpecs(product: ProductRow) {
+  const specs = product.specs;
+  if (!specs || Array.isArray(specs) || typeof specs !== "object") return [];
+
+  return Object.entries(specs)
+    .map(([label, value]) => [label, formatSpecValue(value)] as const)
+    .filter(([, value]) => Boolean(value));
+}
+
+function formatSpecValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (Array.isArray(value)) return value.map(formatSpecValue).filter(Boolean).join(", ");
+  if (typeof value === "object") return Object.entries(value)
+    .map(([key, nestedValue]) => `${key}: ${formatSpecValue(nestedValue)}`)
+    .filter(Boolean)
+    .join(", ");
+  return String(value).trim();
+}
+
+function hasSpec(product: ProductRow, label: string) {
+  const specs = product.specs;
+  if (!specs || Array.isArray(specs) || typeof specs !== "object") return false;
+
+  return Object.keys(specs).some((key) => key.toLowerCase().trim() === label.toLowerCase().trim());
 }
 
 function getFitmentText(product: ProductRow) {
@@ -314,6 +359,8 @@ function getInstallDifficulty(product: ProductRow) {
 }
 
 function getBestForPills(product: ProductRow) {
+  if (hasSpec(product, "Best for")) return [];
+
   if (product.slug === "morimoto-tacoma-xb-evo-amber-fog-lights") {
     return ["Bad weather", "Daily driving", "OEM-plus", "Lighting pack"];
   }
