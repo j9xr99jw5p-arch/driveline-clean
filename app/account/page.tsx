@@ -94,7 +94,7 @@ export default async function AccountPage() {
           <div style={{ marginTop: 12 }}><SignOutButton /></div>
           {canAccessAdmin ? (
             <div style={{ marginTop: 12 }}>
-              <a className="button primary full" href="/admin/verified-builds">Open Admin</a>
+              <a className="button primary full" href="/admin">Open Admin</a>
             </div>
           ) : null}
           {showDebug ? (

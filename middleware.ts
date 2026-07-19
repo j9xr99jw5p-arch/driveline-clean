@@ -3,6 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 const canonicalOrigin = "https://tacomaverifier.net";
 
 export function middleware(request: NextRequest) {
+  if (request.nextUrl.pathname === "/admin/verified-builds") {
+    return NextResponse.redirect(new URL("/admin/builds", request.url), 307);
+  }
+
   const host = request.headers.get("host")?.toLowerCase() ?? "";
 
   if (isLocalHost(host) || !isNetlifyHost(host)) {
