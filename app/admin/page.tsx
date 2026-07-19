@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AdminPageIntro } from "@/app/admin/_components/AdminShell";
-import { AdminMessage, canLoadAdminRouteData, loadDashboardMetrics } from "@/app/admin/_components/AdminTools";
+import { canLoadAdminRouteData, loadDashboardMetrics } from "@/app/admin/_components/AdminTools";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -39,11 +39,6 @@ export default async function AdminDashboardPage() {
           </Link>
         ))}
       </section>
-
-      <AdminMessage
-        title="Sales data note"
-        copy="Total Sales is not shown because Supabase orders do not currently store a live/test-mode marker. Add a livemode field from Stripe webhook events before using orders for production sales totals."
-      />
     </>
   );
 }
