@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { isStorageProduct } from "@/lib/storagePackProducts";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
 
@@ -26,6 +27,8 @@ type ProductCheckoutRow = {
   inventory_status?: string | null;
 };
 
+const storagePackSlug = "storage";
+
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -33,6 +36,7 @@ export async function POST(request: Request) {
   }
 
   const { pack_slug: packSlug } = parsed.data;
+  const normalizedPackSlug = packSlug.trim().toLowerCase();
   const quantitiesByPartId = parsed.data.items.reduce<Map<string, number>>((map, item) => {
     map.set(item.part_id, (map.get(item.part_id) ?? 0) + item.quantity);
     return map;
@@ -64,6 +68,13 @@ export async function POST(request: Request) {
   const productRows = (products ?? []) as ProductCheckoutRow[];
   if (productRows.length !== partIds.length) {
     return NextResponse.json({ error: "One or more selected parts are no longer available." }, { status: 404 });
+  }
+
+  if (normalizedPackSlug === storagePackSlug) {
+    const nonStorageProduct = productRows.find((product) => !isStorageProduct(product));
+    if (nonStorageProduct) {
+      return NextResponse.json({ error: "One or more selected products are no longer available in the Storage Pack." }, { status: 409 });
+    }
   }
 
   const inactiveProduct = productRows.find((product) => !product.active || product.inventory_status === "inactive");

@@ -1,8 +1,9 @@
 import "server-only";
-import { getPartPack, productMatchesPartPack } from "@/lib/partPackConfig";
-import { displayProductCategory, normalizeProductCategory } from "@/lib/products";
+import { getPartPack, normalizeStarterPackCategory, productMatchesPartPack } from "@/lib/partPackConfig";
+import { displayProductCategory } from "@/lib/products";
 import { starterPackDefinitions, type StarterPackDefinition } from "@/lib/starterPackDefinitions";
 import type { StarterPack, StarterPackProduct } from "@/lib/starterPackTypes";
+import { getStorageProductRows } from "@/lib/storagePackProducts";
 import { getStripePriceMap, resolveDisplayPrice } from "@/lib/stripePrices";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -11,7 +12,7 @@ type ProductRow = {
   slug?: string | null;
   name: string;
   brand: string | null;
-  category: string;
+  category: string | null;
   description: string | null;
   image_url: string | null;
   price_cents?: number | null;
@@ -75,9 +76,14 @@ export async function getStarterPacks() {
       .flatMap((pack) => pack.starter_pack_items ?? [])
       .map((item) => Array.isArray(item.products) ? item.products[0] : item.products)
       .filter((product): product is ProductRow => Boolean(product));
-    const stripePrices = await getStripePriceMap(products.map((product) => product.stripe_price_id));
+    const storageResult = await getStorageProductRows();
+    const storageProducts = storageResult.error ? [] : storageResult.products;
+    const stripePrices = await getStripePriceMap([
+      ...products.map((product) => product.stripe_price_id),
+      ...storageProducts.map((product) => product.stripe_price_id)
+    ]);
 
-    return buildPacksFromRows(packRows as StarterPackRow[], stripePrices);
+    return buildPacksFromRows(packRows as StarterPackRow[], stripePrices, storageProducts);
   }
 
   if (packError && packError.code !== "42P01" && packError.code !== "PGRST200" && packError.code !== "PGRST205") {
@@ -102,10 +108,20 @@ export async function getStarterPacks() {
   return buildFallbackPacks(productRows, stripePrices);
 }
 
-function buildPacksFromRows(rows: StarterPackRow[], stripePrices: Awaited<ReturnType<typeof getStripePriceMap>>): StarterPack[] {
+function buildPacksFromRows(
+  rows: StarterPackRow[],
+  stripePrices: Awaited<ReturnType<typeof getStripePriceMap>>,
+  storageProducts: ProductRow[]
+): StarterPack[] {
   return rows.map((row) => {
     const definition = findDefinition(row.slug);
-    const products = (row.starter_pack_items ?? [])
+    const products = row.slug === "storage" ? storageProducts.map((product) => mapProduct(product, stripePrices, {
+      note: definition?.subtitle ?? null,
+      required: false,
+      defaultSelected: true,
+      recommendedQuantity: 1,
+      budgetTier: "budget"
+    })) : (row.starter_pack_items ?? [])
       .map((item) => {
         const product = Array.isArray(item.products) ? item.products[0] : item.products;
         if (!product?.active) return null;
@@ -135,8 +151,7 @@ function buildPacksFromRows(rows: StarterPackRow[], stripePrices: Awaited<Return
         category: group.category,
         items: group.items,
         note: group.note,
-        products: products.filter((product) => group.matchCategories.length === 0
-          || group.matchCategories.some((category) => normalizeProductCategory(product.category) === normalizeProductCategory(category)))
+        products: products.filter((product) => productMatchesStarterPackGroup(product, group.matchCategories))
       }))
     };
   });
@@ -156,9 +171,9 @@ function buildFallbackPacks(products: ProductRow[], stripePrices: Awaited<Return
       products: products
         .filter((product) => {
           const pack = getPartPack(definition.slug);
-          if (pack) return productMatchesPartPack(mapProductForMatching(product), pack);
+          if (pack) return productMatchesPartPack(product, pack);
 
-          return group.matchCategories.some((category) => normalizeProductCategory(product.category) === normalizeProductCategory(category));
+          return productMatchesStarterPackGroup(product, group.matchCategories);
         })
         .slice(0, 4)
         .map((product) => mapProduct(product, stripePrices, {
@@ -207,11 +222,9 @@ function findDefinition(slug: string): StarterPackDefinition | undefined {
   return starterPackDefinitions.find((definition) => definition.slug === slug);
 }
 
-function mapProductForMatching(product: ProductRow) {
-  return {
-    name: product.name,
-    brand: product.brand,
-    description: product.description,
-    category: displayProductCategory(product.category)
-  };
+function productMatchesStarterPackGroup(product: Pick<ProductRow, "category">, categories: string[]) {
+  if (!categories.length) return false;
+
+  const productCategory = normalizeStarterPackCategory(product.category);
+  return categories.some((category) => normalizeStarterPackCategory(category) === productCategory);
 }
