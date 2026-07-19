@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { isStorageProduct } from "@/lib/storagePackProducts";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
 
@@ -27,7 +26,12 @@ type ProductCheckoutRow = {
   inventory_status?: string | null;
 };
 
-const storagePackSlug = "storage";
+type PackCheckoutRow = {
+  pack_products?: Array<{
+    product_id: string;
+    products: ProductCheckoutRow | ProductCheckoutRow[] | null;
+  }> | null;
+};
 
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json().catch(() => null));
@@ -36,7 +40,6 @@ export async function POST(request: Request) {
   }
 
   const { pack_slug: packSlug } = parsed.data;
-  const normalizedPackSlug = packSlug.trim().toLowerCase();
   const quantitiesByPartId = parsed.data.items.reduce<Map<string, number>>((map, item) => {
     map.set(item.part_id, (map.get(item.part_id) ?? 0) + item.quantity);
     return map;
@@ -45,36 +48,69 @@ export async function POST(request: Request) {
 
   const supabase = createSupabaseAdminClient();
   const initialResult = await supabase
-    .from("products")
-    .select("id, name, category, description, image_url, price_cents, stripe_price_id, active, inventory_status")
-    .in("id", partIds);
-  let products = initialResult.data as ProductCheckoutRow[] | null;
+    .from("packs")
+    .select(`
+      pack_products (
+        product_id,
+        products (
+          id,
+          name,
+          category,
+          description,
+          image_url,
+          price_cents,
+          stripe_price_id,
+          active,
+          inventory_status
+        )
+      )
+    `)
+    .eq("active", true)
+    .eq("slug", packSlug)
+    .maybeSingle();
+  let pack = initialResult.data as PackCheckoutRow | null;
   let error = initialResult.error;
 
   if (error?.code === "42703" || error?.code === "PGRST204") {
     const fallback = await supabase
-      .from("products")
-      .select("id, name, category, description, image_url, price_cents, stripe_price_id, active")
-      .in("id", partIds);
-    products = fallback.data as ProductCheckoutRow[] | null;
+      .from("packs")
+      .select(`
+        pack_products (
+          product_id,
+          products (
+            id,
+            name,
+            category,
+            description,
+            image_url,
+            price_cents,
+            stripe_price_id,
+            active
+          )
+        )
+      `)
+      .eq("active", true)
+      .eq("slug", packSlug)
+      .maybeSingle();
+    pack = fallback.data as PackCheckoutRow | null;
     error = fallback.error;
   }
 
   if (error) {
-    console.error("Starter pack checkout product lookup failed", error);
+    console.error("Starter pack checkout pack lookup failed", error);
     return NextResponse.json({ error: friendlyCheckoutError }, { status: 500 });
   }
 
-  const productRows = (products ?? []) as ProductCheckoutRow[];
-  if (productRows.length !== partIds.length) {
-    return NextResponse.json({ error: "One or more selected parts are no longer available." }, { status: 404 });
+  if (!pack) {
+    return NextResponse.json({ error: "This starter pack is no longer available." }, { status: 404 });
   }
 
-  if (normalizedPackSlug === storagePackSlug) {
-    const nonStorageProduct = productRows.find((product) => !isStorageProduct(product));
-    if (nonStorageProduct) {
-      return NextResponse.json({ error: "One or more selected products are no longer available in the Storage Pack." }, { status: 409 });
-    }
+  const productRows = (pack.pack_products ?? [])
+    .map((item) => Array.isArray(item.products) ? item.products[0] : item.products)
+    .filter((product): product is ProductCheckoutRow => Boolean(product?.active && quantitiesByPartId.has(product.id)));
+
+  if (productRows.length !== partIds.length) {
+    return NextResponse.json({ error: "One or more selected parts are no longer assigned to this pack." }, { status: 404 });
   }
 
   const inactiveProduct = productRows.find((product) => !product.active || product.inventory_status === "inactive");

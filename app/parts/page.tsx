@@ -1,10 +1,14 @@
 import { getPartsCatalog } from "@/lib/partsCatalog";
+import { getActivePackSummaries } from "@/lib/packs";
 import { PartsGrid } from "./PartsGrid";
 
 export const dynamic = "force-dynamic";
 
 export default async function PartsPage() {
-  const { products, categories } = await getPartsCatalog();
+  const [{ products, categories }, packs] = await Promise.all([
+    getPartsCatalog(),
+    getActivePackSummaries()
+  ]);
 
   return (
     <section className="band">
@@ -14,7 +18,7 @@ export default async function PartsPage() {
           <h1>Browse Parts</h1>
           <p className="lead">Find parts used on verified Tacoma builds, then open each part to see the builds running it.</p>
         </div>
-        <PartsGrid products={products} categories={categories} />
+        <PartsGrid products={products} categories={categories} packs={packs} />
       </div>
     </section>
   );

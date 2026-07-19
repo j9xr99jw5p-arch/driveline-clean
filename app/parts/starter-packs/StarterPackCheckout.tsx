@@ -88,7 +88,7 @@ export function StarterPackCheckout({ packs }: { packs: StarterPack[] }) {
     return (
       <div className="starter-pack-empty">
         <h2>No starter packs are available yet.</h2>
-        <p className="muted">Add active products or starter pack rows in Supabase to power this checkout flow.</p>
+        <p className="muted">Use Manage Packs in admin to assign active products to this checkout flow.</p>
       </div>
     );
   }
@@ -180,7 +180,7 @@ export function StarterPackCheckout({ packs }: { packs: StarterPack[] }) {
                 </div>
               ) : (
                 <p className="starter-pack-placeholder-copy">
-                  No live catalog items are connected to this group yet. Add matching products or starter_pack_items in Supabase to make this group checkout-ready.
+                  No live catalog items are connected to this group yet. Use Manage Packs in admin to make this group checkout-ready.
                 </p>
               )}
             </section>

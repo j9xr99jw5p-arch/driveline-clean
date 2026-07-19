@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { AdminPackManager, type PackManagementData } from "@/components/AdminPackManager";
 import {
   hasAdminPasswordConfigured,
   hasValidAdminSession,
@@ -61,6 +62,7 @@ export default async function VerifiedBuildsAdminPage() {
   let builds: VerifiedBuild[] = [];
   let analytics: VisitAnalytics | null = null;
   let productStock: ProductStockRow[] = [];
+  let packManagementData: PackManagementData | null = null;
   let loadError: string | null = null;
   let currentEmail: string | null = null;
 
@@ -89,6 +91,7 @@ export default async function VerifiedBuildsAdminPage() {
 
       analytics = await loadVisitAnalytics(admin);
       productStock = await loadProductStock(admin);
+      packManagementData = await loadPackManagementData(admin);
     }
   }
 
@@ -131,6 +134,11 @@ export default async function VerifiedBuildsAdminPage() {
           <div className="admin-dashboard">
             <VisitAnalyticsPanel analytics={analytics} />
             <ProductStockPanel products={productStock} />
+            {packManagementData ? (
+              <AdminPackManager data={packManagementData} />
+            ) : (
+              <AdminMessage title="Pack manager unavailable." copy="Run the pack-management migration to enable pack editing." />
+            )}
             <section className="admin-panel">
               <div className="admin-panel-head">
                 <div>
@@ -153,6 +161,81 @@ export default async function VerifiedBuildsAdminPage() {
       </div>
     </section>
   );
+}
+
+async function loadPackManagementData(admin: ReturnType<typeof createSupabaseAdminClient>): Promise<PackManagementData | null> {
+  const [packsResult, productsResult] = await Promise.all([
+    admin
+      .from("packs")
+      .select("id, name, slug, active, sort_order, pack_products(product_id, sort_order, quantity, selected_by_default)")
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true }),
+    admin
+      .from("products")
+      .select("id, name, brand, category")
+      .eq("active", true)
+      .order("category", { ascending: true })
+      .order("name", { ascending: true })
+  ]);
+
+  if (packsResult.error) {
+    if (packsResult.error.code !== "42P01" && packsResult.error.code !== "42703" && packsResult.error.code !== "PGRST204") {
+      console.error("Failed to load pack management packs:", packsResult.error);
+    }
+    return null;
+  }
+
+  if (productsResult.error) {
+    console.error("Failed to load pack management products:", productsResult.error);
+    return null;
+  }
+
+  type PackRow = {
+    id: string;
+    name: string;
+    slug: string;
+    active: boolean;
+    sort_order: number | null;
+    pack_products?: Array<{
+      product_id: string;
+      sort_order: number | null;
+      quantity: number | null;
+      selected_by_default: boolean | null;
+    }> | null;
+  };
+  type ProductRow = {
+    id: string;
+    name: string;
+    brand: string | null;
+    category: string | null;
+  };
+
+  const products = ((productsResult.data ?? []) as ProductRow[]).map((product) => ({
+    id: product.id,
+    name: product.name,
+    brand: product.brand,
+    category: product.category?.trim() || null
+  }));
+  const categories = Array.from(new Set(products.map((product) => product.category ?? "Uncategorized"))).sort((a, b) => a.localeCompare(b));
+
+  return {
+    packs: ((packsResult.data ?? []) as PackRow[])
+      .filter((pack) => pack.active)
+      .map((pack) => ({
+        id: pack.id,
+        name: pack.name,
+        slug: pack.slug,
+        assignments: Array.from(new Map((pack.pack_products ?? []).map((assignment) => [assignment.product_id, {
+          productId: assignment.product_id,
+          sortOrder: assignment.sort_order ?? 0,
+          quantity: Math.max(1, Math.min(10, assignment.quantity ?? 1)),
+          selectedByDefault: assignment.selected_by_default ?? true
+        }])).values())
+          .sort((left, right) => left.sortOrder - right.sortOrder)
+      })),
+    products,
+    categories
+  };
 }
 
 async function loadVisitAnalytics(admin: ReturnType<typeof createSupabaseAdminClient>): Promise<VisitAnalytics | null> {

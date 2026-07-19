@@ -4,12 +4,17 @@ import { useState } from "react";
 
 const checkoutErrorMessage = "Pack checkout is having trouble opening right now. Please try again in a moment.";
 
-export function BuyAllPackButton({ packSlug, productIds }: { packSlug: string; productIds: string[] }) {
+type BuyAllItem = {
+  partId: string;
+  quantity: number;
+};
+
+export function BuyAllPackButton({ packSlug, items }: { packSlug: string; items: BuyAllItem[] }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function checkout() {
-    if (!productIds.length || loading) return;
+    if (!items.length || loading) return;
 
     setLoading(true);
     setError(null);
@@ -20,7 +25,7 @@ export function BuyAllPackButton({ packSlug, productIds }: { packSlug: string; p
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pack_slug: packSlug,
-          items: productIds.map((partId) => ({ part_id: partId, quantity: 1 }))
+          items: items.map((item) => ({ part_id: item.partId, quantity: item.quantity }))
         })
       });
       const data = await response.json().catch(() => null) as { url?: string; error?: string } | null;
@@ -39,10 +44,10 @@ export function BuyAllPackButton({ packSlug, productIds }: { packSlug: string; p
 
   return (
     <div className="pack-buy-control">
-      <button className="button primary" disabled={!productIds.length || loading} onClick={checkout} type="button">
+      <button className="button primary" disabled={!items.length || loading} onClick={checkout} type="button">
         {loading ? "Opening checkout..." : "Buy all"}
       </button>
-      {!productIds.length ? <p className="fine">Pack checkout coming soon once matching parts are added.</p> : null}
+      {!items.length ? <p className="fine">Pack checkout is available once selected-by-default products are assigned.</p> : null}
       {error ? <p className="form-error">{error}</p> : null}
     </div>
   );

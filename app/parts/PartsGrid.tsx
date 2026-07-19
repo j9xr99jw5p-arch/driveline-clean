@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { partPacks } from "@/lib/partPackConfig";
+import type { PackSummary } from "@/lib/packs";
 import { normalizeProductCategory, type ProductSummary } from "@/lib/products";
 
-export function PartsGrid({ products, categories }: { products: ProductSummary[]; categories: string[] }) {
+export function PartsGrid({ products, categories, packs }: { products: ProductSummary[]; categories: string[]; packs: PackSummary[] }) {
   const [category, setCategory] = useState("all");
   const filteredProducts = useMemo(() => {
     if (category === "all") return products;
@@ -29,10 +29,16 @@ export function PartsGrid({ products, categories }: { products: ProductSummary[]
         <div className="parts-pack-nav">
           <p className="eyebrow">Starter packs</p>
           <div className="parts-pack-buttons">
-            {partPacks.map((pack) => (
-              <Link className="button full" href={`/parts/packs/${pack.slug}`} key={pack.slug}>
-                {pack.title}
-              </Link>
+            {packs.map((pack) => (
+              <article className="parts-pack-card" key={pack.slug}>
+                <div>
+                  <h3>{pack.name}</h3>
+                  <p className="muted">{pack.description}</p>
+                </div>
+                <Link className="button full" href={`/parts/packs/${pack.slug}`}>
+                  View {pack.name}
+                </Link>
+              </article>
             ))}
           </div>
         </div>
