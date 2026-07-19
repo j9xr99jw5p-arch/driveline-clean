@@ -276,11 +276,12 @@ async function loadTrafficMetric(admin: ReturnType<typeof createSupabaseAdminCli
 }
 
 async function loadSalesMetric(admin: ReturnType<typeof createSupabaseAdminClient>): Promise<AdminDashboardMetric> {
-  const { error } = await admin
+  const { data, error } = await admin
     .from("orders")
-    .select("id, amount_total, status", { count: "exact" })
+    .select("stripe_checkout_session_id")
     .eq("status", "paid")
-    .limit(1);
+    .eq("livemode", true)
+    .limit(10000);
 
   if (error) {
     if (error.code !== "42P01" && error.code !== "42703") {
@@ -289,16 +290,20 @@ async function loadSalesMetric(admin: ReturnType<typeof createSupabaseAdminClien
     return {
       label: "Total Sales",
       value: "Unavailable",
-      supportingText: "Completed order storage is not available.",
+      supportingText: "Paid live checkout totals could not be loaded.",
       href: "/admin/parts",
       error: true
     };
   }
 
+  const paidCheckoutCount = new Set((data ?? [])
+    .map((order: { stripe_checkout_session_id: string | null }) => order.stripe_checkout_session_id)
+    .filter(Boolean)).size;
+
   return {
     label: "Total Sales",
-    value: "Unavailable",
-    supportingText: "Supabase orders stores status and amount_total, but no live/test-mode marker; safe production sales totals need a livemode field.",
+    value: String(paidCheckoutCount),
+    supportingText: "Successfully paid live Stripe checkout sessions.",
     href: "/admin/parts"
   };
 }

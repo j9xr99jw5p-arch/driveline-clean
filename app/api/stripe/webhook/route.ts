@@ -42,7 +42,7 @@ export async function POST(request: Request) {
         const session = event.data.object as Stripe.Checkout.Session;
 
         if (session.mode === "payment") {
-          await syncProductOrder(session);
+          await syncProductOrder(session, event);
           break;
         }
 
@@ -68,6 +68,11 @@ export async function POST(request: Request) {
         }
 
         if (subscription) await syncSubscription(subscription, userId);
+        break;
+      }
+      case "checkout.session.async_payment_succeeded": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        if (session.mode === "payment") await syncProductOrder(session, event);
         break;
       }
       case "customer.subscription.created":
@@ -180,7 +185,7 @@ export async function POST(request: Request) {
     });
   }
 
-  async function syncProductOrder(session: Stripe.Checkout.Session) {
+  async function syncProductOrder(session: Stripe.Checkout.Session, stripeEvent: Stripe.Event) {
     devLog("Stripe webhook payment mode:", session.mode);
 
     const productId = session.metadata?.product_id ?? null;
@@ -189,6 +194,9 @@ export async function POST(request: Request) {
     const paymentIntentId = normalizePaymentIntentId(session.payment_intent);
     const customerId = normalizeStripeCustomerId(session.customer);
     const shippingDetails = getSessionShippingDetails(session);
+    const paidAt = session.payment_status === "paid"
+      ? new Date(stripeEvent.created * 1000).toISOString()
+      : null;
 
     const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 });
     const quantity = lineItems.data[0]?.quantity ?? 1;
@@ -215,6 +223,8 @@ export async function POST(request: Request) {
         amount_total: session.amount_total,
         currency: session.currency,
         status: session.payment_status,
+        livemode: session.livemode,
+        paid_at: paidAt,
         customer_email: session.customer_details?.email ?? null,
         shipping_name: shippingDetails?.name ?? null,
         shipping_address: shippingDetails?.address ?? null
