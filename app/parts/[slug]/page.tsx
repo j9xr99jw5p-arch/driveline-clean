@@ -2,12 +2,18 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProductCheckoutButton } from "@/app/builds/[id]/ProductCheckoutButton";
 import { BuildCard } from "@/components/BuildCard";
+import { ProductImageCarousel, type ProductGalleryImage } from "@/components/ProductImageCarousel";
 import {
   displayProductCategory,
   applyVariantAddOnPricing,
+  formatRatingBreakdownText,
+  formatReviewContext,
+  getProductReviewSummary,
   getSinglePurchasableVariant,
   hasRealProductVariants,
   mapVariant,
+  type ProductReviewFields,
+  type ProductReviewSummary,
   type ProductVariantRow
 } from "@/lib/products";
 import { getStripePriceMap, resolveDisplayPrice } from "@/lib/stripePrices";
@@ -30,8 +36,18 @@ type ProductRow = {
   install_url?: string | null;
   specs?: unknown;
   stripe_price_id: string | null;
-  product_images?: Array<{ url: string; sort_order: number | null }> | null;
-};
+  product_images?: Array<{ url: string | null; alt_text: string | null; sort_order: number | null }> | null;
+  review_sentiment?: string | null;
+  review_summary?: string | null;
+  review_praise?: unknown;
+  review_complaints?: unknown;
+  review_takeaway?: string | null;
+  review_count_analyzed?: number | null;
+  review_rating_average?: number | null;
+  review_rating_breakdown?: unknown;
+  review_source_name?: string | null;
+  review_source_url?: string | null;
+} & ProductReviewFields;
 
 type BuildProductLinkRow = {
   id: string;
@@ -40,12 +56,18 @@ type BuildProductLinkRow = {
   verified_builds: VerifiedBuild | VerifiedBuild[] | null;
 };
 
+type ProductImageRow = {
+  url: string | null;
+  alt_text: string | null;
+  sort_order: number | null;
+};
+
 export default async function PartDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const supabase = createSupabaseAdminClient();
   const productResult = await supabase
     .from("products")
-    .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, install_url, specs, stripe_price_id, product_images(url, sort_order)")
+    .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, install_url, specs, stripe_price_id, review_sentiment, review_summary, review_praise, review_complaints, review_takeaway, review_count_analyzed, review_rating_average, review_rating_breakdown, review_source_name, review_source_url, product_images(url, alt_text, sort_order)")
     .eq("active", true)
     .eq("slug", slug)
     .maybeSingle();
@@ -55,7 +77,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   if (!product && isUuid(slug)) {
     const idResult = await supabase
       .from("products")
-      .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, install_url, specs, stripe_price_id, product_images(url, sort_order)")
+      .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, install_url, specs, stripe_price_id, review_sentiment, review_summary, review_praise, review_complaints, review_takeaway, review_count_analyzed, review_rating_average, review_rating_breakdown, review_source_name, review_source_url, product_images(url, alt_text, sort_order)")
       .eq("active", true)
       .eq("id", slug)
       .maybeSingle();
@@ -73,7 +95,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
       ? await fallbackQuery.eq("id", slug).maybeSingle()
       : await fallbackQuery.eq("slug", slug).maybeSingle();
 
-    product = fallback.data as ProductRow | null;
+    product = fallback.data ? mapProductReviewFields(fallback.data as ProductRow) : null;
     productError = fallback.error;
   }
 
@@ -83,6 +105,20 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   }
 
   if (!product) notFound();
+  product = mapProductReviewFields(product);
+
+  const { data: productImageRows, error: productImageError } = await supabase
+    .from("product_images")
+    .select("url, alt_text, sort_order")
+    .eq("product_id", product.id)
+    .order("sort_order", { ascending: true });
+
+  if (productImageError) {
+    console.error("Part detail product image query failed:", productImageError);
+    product.product_images = [];
+  } else {
+    product.product_images = (productImageRows ?? []) as ProductImageRow[];
+  }
 
   const [initialVariantResult, initialLinkResult] = await Promise.all([
     supabase
@@ -157,12 +193,12 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
     priceCents: product.price_cents ?? firstVariantPrice?.priceCents ?? null
   }, stripePrices);
   const priceLabel = displayPrice.priceLabel;
-  const productImageUrls = getProductImageUrls(product);
-  const primaryImageUrl = productImageUrls[0] ?? null;
+  const productGalleryImages = getProductGalleryImages(product);
   const cleanDescription = sanitizeProductDescription(product.description);
   const installInstructionsUrl = getInstallInstructionsUrl(product);
   const productSpecs = getProductSpecs(product);
   const productDetails = getProductDetailContext(product);
+  const ownerReview = getProductReviewSummary(product);
   const buildLinks = (linkRows ?? [])
     .map((link) => {
       const build = Array.isArray(link.verified_builds) ? link.verified_builds[0] : link.verified_builds;
@@ -176,24 +212,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
       <section className="band">
         <div className="section part-detail-layout">
           <div className="part-detail-image">
-            {primaryImageUrl ? (
-              <span className="part-image-frame">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="part-image-bg" src={primaryImageUrl} alt="" aria-hidden="true" />
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="part-image-main" src={primaryImageUrl} alt={product.name} />
-              </span>
-            ) : <span>{displayProductCategory(product.category)}</span>}
-            {productImageUrls.length > 1 ? (
-              <div className="part-image-strip" aria-label="Additional product images">
-                {productImageUrls.map((imageUrl, index) => (
-                  <a href={imageUrl} key={imageUrl} target="_blank" rel="noreferrer">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={imageUrl} alt={`${product.name} image ${index + 1}`} />
-                  </a>
-                ))}
-              </div>
-            ) : null}
+            <ProductImageCarousel images={productGalleryImages} fallbackLabel={displayProductCategory(product.category)} />
           </div>
           <div className="part-detail-content">
             <p className="eyebrow">{[product.brand, displayProductCategory(product.category)].filter(Boolean).join(" / ")}</p>
@@ -242,6 +261,14 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
         </div>
       </section>
 
+      {ownerReview ? (
+        <section className="band">
+          <div className="section">
+            <OwnerReviewSection review={ownerReview} />
+          </div>
+        </section>
+      ) : null}
+
       <section className="band">
         <div className="section">
           <div className="section-heading">
@@ -276,6 +303,75 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
         </div>
       </section>
     </>
+  );
+}
+
+function mapProductReviewFields<T extends Partial<ProductRow>>(product: T): T & ProductReviewFields {
+  return {
+    ...product,
+    reviewSentiment: product.review_sentiment ?? null,
+    reviewSummary: product.review_summary ?? null,
+    reviewPraise: product.review_praise ?? null,
+    reviewComplaints: product.review_complaints ?? null,
+    reviewTakeaway: product.review_takeaway ?? null,
+    reviewCountAnalyzed: product.review_count_analyzed ?? null,
+    reviewRatingAverage: product.review_rating_average ?? null,
+    reviewRatingBreakdown: product.review_rating_breakdown ?? null,
+    reviewSourceName: product.review_source_name ?? null,
+    reviewSourceUrl: product.review_source_url ?? null
+  };
+}
+
+function OwnerReviewSection({ review }: { review: ProductReviewSummary }) {
+  const reviewContext = formatReviewContext(review);
+  const ratingBreakdownText = formatRatingBreakdownText(review.ratingBreakdown);
+
+  return (
+    <section className="owner-review-section" aria-labelledby="owner-review-title">
+      <div className="owner-review-head">
+        <div>
+          <p className="eyebrow">Owner Research</p>
+          <h2 id="owner-review-title">What owners say</h2>
+        </div>
+        {review.sentimentLabel ? (
+          <p className="owner-review-sentiment">Overall sentiment: <strong>{review.sentimentLabel}</strong></p>
+        ) : null}
+      </div>
+
+      {review.summary ? <p className="owner-review-summary">{review.summary}</p> : null}
+
+      {review.praise.length || review.complaints.length ? (
+        <div className="owner-review-lists">
+          {review.praise.length ? <OwnerReviewList title="Common praise" items={review.praise} tone="positive" /> : null}
+          {review.complaints.length ? <OwnerReviewList title="Common complaints" items={review.complaints} tone="caution" /> : null}
+        </div>
+      ) : null}
+
+      {review.takeaway ? (
+        <div className="owner-review-takeaway">
+          <h3>Driveline takeaway</h3>
+          <p>{review.takeaway}</p>
+        </div>
+      ) : null}
+
+      {reviewContext || ratingBreakdownText ? (
+        <div className="owner-review-context">
+          {reviewContext ? <p>{reviewContext}</p> : null}
+          {ratingBreakdownText ? <p>{ratingBreakdownText}</p> : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function OwnerReviewList({ title, items, tone }: { title: string; items: string[]; tone: "positive" | "caution" }) {
+  return (
+    <div className={`owner-review-list ${tone}`}>
+      <h3>{title}</h3>
+      <ul>
+        {items.map((item) => <li key={item}>{item}</li>)}
+      </ul>
+    </div>
   );
 }
 
@@ -427,16 +523,26 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function getProductImageUrls(product: ProductRow) {
-  const imageUrls = (product.product_images ?? [])
-    .slice()
-    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-    .map((image) => image.url)
-    .filter(Boolean);
+function getProductGalleryImages(product: ProductRow): ProductGalleryImage[] {
+  const galleryImages = [
+    product.image_url ? { url: product.image_url, alt: "" } : null,
+    ...(product.product_images ?? [])
+      .slice()
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .map((image) => image.url ? {
+        url: image.url,
+        alt: image.alt_text?.trim() || ""
+      } : null)
+  ].filter((image): image is ProductGalleryImage => Boolean(image?.url?.trim()));
 
-  if (product.image_url && !imageUrls.includes(product.image_url)) {
-    imageUrls.push(product.image_url);
-  }
-
-  return imageUrls;
+  return Array.from(new Map(galleryImages.map((image) => {
+    const cleanUrl = image.url.trim();
+    return [cleanUrl, {
+      url: cleanUrl,
+      alt: image.alt
+    }];
+  })).values()).map((image, index) => ({
+    ...image,
+    alt: image.alt || `${product.name} product image ${index + 1}`
+  }));
 }

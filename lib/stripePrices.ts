@@ -15,13 +15,6 @@ type PriceInput = {
   priceCents?: number | null;
 };
 
-const seededPriceFallbacks: Record<string, number> = {
-  price_1TmhBnAxOgxntpwRFSJteEhA: 3999,
-  price_1TmhPSAxOgxntpwRI5xmI5Tx: 9499,
-  price_1TmhTQAxOgxntpwRhSEY4rtC: 4500,
-  price_1TmhWJAxOgxntpwRm4JD7JQw: 16599
-};
-
 export async function getStripePriceMap(priceIds: Array<string | null | undefined>) {
   const uniquePriceIds = Array.from(new Set(priceIds.filter((priceId): priceId is string => Boolean(priceId))));
   const priceMap = new Map<string, DisplayPrice>();
@@ -63,15 +56,6 @@ export function resolveDisplayPrice(input: PriceInput, stripePrices: Map<string,
     return {
       priceCents: input.priceCents,
       priceLabel: formatCents(input.priceCents) ?? "Price unavailable",
-      priceSource: "database"
-    };
-  }
-
-  if (input.stripePriceId && seededPriceFallbacks[input.stripePriceId]) {
-    const fallbackCents = seededPriceFallbacks[input.stripePriceId];
-    return {
-      priceCents: fallbackCents,
-      priceLabel: formatCents(fallbackCents) ?? "Price unavailable",
       priceSource: "database"
     };
   }

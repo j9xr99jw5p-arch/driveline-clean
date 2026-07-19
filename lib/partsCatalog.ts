@@ -21,6 +21,16 @@ type ProductRow = {
   price_cents?: number | null;
   stripe_price_id: string | null;
   product_images?: Array<{ url: string; sort_order: number | null }> | null;
+  review_sentiment?: string | null;
+  review_summary?: string | null;
+  review_praise?: unknown;
+  review_complaints?: unknown;
+  review_takeaway?: string | null;
+  review_count_analyzed?: number | null;
+  review_rating_average?: number | null;
+  review_rating_breakdown?: unknown;
+  review_source_name?: string | null;
+  review_source_url?: string | null;
 };
 
 type BuildProductCountRow = {
@@ -31,7 +41,7 @@ export async function getPartsCatalog() {
   const supabase = createSupabaseAdminClient();
   const productResult = await supabase
     .from("products")
-    .select("id, slug, name, brand, category, description, image_url, price_cents, stripe_price_id, product_images(url, sort_order)")
+    .select("id, slug, name, brand, category, description, image_url, price_cents, stripe_price_id, review_sentiment, review_summary, review_praise, review_complaints, review_takeaway, review_count_analyzed, review_rating_average, review_rating_breakdown, review_source_name, review_source_url, product_images(url, sort_order)")
     .eq("active", true)
     .order("category", { ascending: true })
     .order("name", { ascending: true });
@@ -136,7 +146,17 @@ export async function getPartsCatalog() {
       priceSource: productPrice.priceSource,
       stripePriceId: product.stripe_price_id,
       buildCount: countsByProduct.get(product.id) ?? 0,
-      variants
+      variants,
+      reviewSentiment: product.review_sentiment ?? null,
+      reviewSummary: product.review_summary ?? null,
+      reviewPraise: product.review_praise ?? null,
+      reviewComplaints: product.review_complaints ?? null,
+      reviewTakeaway: product.review_takeaway ?? null,
+      reviewCountAnalyzed: product.review_count_analyzed ?? null,
+      reviewRatingAverage: product.review_rating_average ?? null,
+      reviewRatingBreakdown: product.review_rating_breakdown ?? null,
+      reviewSourceName: product.review_source_name ?? null,
+      reviewSourceUrl: product.review_source_url ?? null
     };
   });
   const categories = Array.from(new Map(products
