@@ -1,37 +1,44 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  buildStarterPackCheckoutPlan,
+  PackCheckoutValidationError,
+  type PackCheckoutRow
+} from "@/lib/packCheckout";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
 
+const checkoutItemSchema = z.object({
+  productId: z.string().uuid().optional(),
+  part_id: z.string().uuid().optional(),
+  variantId: z.string().uuid().optional(),
+  variant_id: z.string().uuid().optional(),
+  quantity: z.number().int().min(1).max(10)
+}).transform((item) => ({
+  productId: item.productId ?? item.part_id,
+  variantId: item.variantId ?? item.variant_id ?? null,
+  quantity: item.quantity
+})).refine((item) => Boolean(item.productId), {
+  message: "Each selected item needs a product id."
+});
+
 const schema = z.object({
-  pack_slug: z.string().trim().min(1).max(100),
-  items: z.array(z.object({
-    part_id: z.string().uuid(),
-    quantity: z.number().int().min(1).max(10)
-  })).min(1).max(25)
+  packSlug: z.string().trim().min(1).max(100).optional(),
+  pack_slug: z.string().trim().min(1).max(100).optional(),
+  items: z.array(checkoutItemSchema).min(1).max(25)
+}).transform((payload) => ({
+  packSlug: payload.packSlug ?? payload.pack_slug,
+  items: payload.items.map((item) => ({
+    productId: item.productId!,
+    variantId: item.variantId,
+    quantity: item.quantity
+  }))
+})).refine((payload) => Boolean(payload.packSlug), {
+  message: "Choose a valid starter pack."
 });
 
 const friendlyCheckoutError =
   "We’re having trouble opening checkout right now. Please try again in a moment.";
-
-type ProductCheckoutRow = {
-  id: string;
-  name: string;
-  category: string;
-  description: string | null;
-  image_url: string | null;
-  price_cents: number | null;
-  stripe_price_id: string | null;
-  active: boolean;
-  inventory_status?: string | null;
-};
-
-type PackCheckoutRow = {
-  pack_products?: Array<{
-    product_id: string;
-    products: ProductCheckoutRow | ProductCheckoutRow[] | null;
-  }> | null;
-};
 
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json().catch(() => null));
@@ -39,17 +46,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Choose at least one valid starter pack item." }, { status: 400 });
   }
 
-  const { pack_slug: packSlug } = parsed.data;
-  const quantitiesByPartId = parsed.data.items.reduce<Map<string, number>>((map, item) => {
-    map.set(item.part_id, (map.get(item.part_id) ?? 0) + item.quantity);
-    return map;
-  }, new Map());
-  const partIds = Array.from(quantitiesByPartId.keys());
-
+  const packSlug = parsed.data.packSlug!;
   const supabase = createSupabaseAdminClient();
-  const initialResult = await supabase
+  const { data: packData, error } = await supabase
     .from("packs")
     .select(`
+      id,
+      slug,
       pack_products (
         product_id,
         products (
@@ -61,138 +64,92 @@ export async function POST(request: Request) {
           price_cents,
           stripe_price_id,
           active,
-          inventory_status
+          inventory_status,
+          product_variants (
+            id,
+            product_id,
+            variant_name,
+            stripe_price_id,
+            active,
+            inventory_status,
+            price_cents
+          )
         )
       )
     `)
     .eq("active", true)
     .eq("slug", packSlug)
     .maybeSingle();
-  let pack = initialResult.data as PackCheckoutRow | null;
-  let error = initialResult.error;
-
-  if (error?.code === "42703" || error?.code === "PGRST204") {
-    const fallback = await supabase
-      .from("packs")
-      .select(`
-        pack_products (
-          product_id,
-          products (
-            id,
-            name,
-            category,
-            description,
-            image_url,
-            price_cents,
-            stripe_price_id,
-            active
-          )
-        )
-      `)
-      .eq("active", true)
-      .eq("slug", packSlug)
-      .maybeSingle();
-    pack = fallback.data as PackCheckoutRow | null;
-    error = fallback.error;
-  }
 
   if (error) {
     console.error("Starter pack checkout pack lookup failed", error);
     return NextResponse.json({ error: friendlyCheckoutError }, { status: 500 });
   }
 
-  if (!pack) {
+  if (!packData) {
     return NextResponse.json({ error: "This starter pack is no longer available." }, { status: 404 });
   }
 
-  const productRows = (pack.pack_products ?? [])
-    .map((item) => Array.isArray(item.products) ? item.products[0] : item.products)
-    .filter((product): product is ProductCheckoutRow => Boolean(product?.active && quantitiesByPartId.has(product.id)));
-
-  if (productRows.length !== partIds.length) {
-    return NextResponse.json({ error: "One or more selected parts are no longer assigned to this pack." }, { status: 404 });
-  }
-
-  const inactiveProduct = productRows.find((product) => !product.active || product.inventory_status === "inactive");
-  if (inactiveProduct) {
-    return NextResponse.json({ error: `${inactiveProduct.name} is not available for checkout.` }, { status: 409 });
-  }
-
-  const outOfStockProduct = productRows.find((product) => product.inventory_status === "out_of_stock");
-  if (outOfStockProduct) {
-    return NextResponse.json({ error: `${outOfStockProduct.name} is currently out of stock.` }, { status: 409 });
-  }
-
-  const unpricedProduct = productRows.find((product) => !product.stripe_price_id && !isPositiveCents(product.price_cents));
-  if (unpricedProduct) {
-    return NextResponse.json({ error: "One or more selected products are missing pricing. Please remove them or try again later." }, { status: 409 });
+  const pack = packData as PackCheckoutRow;
+  let checkoutPlan: ReturnType<typeof buildStarterPackCheckoutPlan>;
+  try {
+    checkoutPlan = buildStarterPackCheckoutPlan(pack, parsed.data.items);
+  } catch (validationError) {
+    if (validationError instanceof PackCheckoutValidationError) {
+      return NextResponse.json({ error: validationError.message }, { status: validationError.status });
+    }
+    throw validationError;
   }
 
   try {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
     const stripe = getStripe();
-    const lineItems = productRows.map((product) => {
-      const quantity = quantitiesByPartId.get(product.id) ?? 1;
-      const adjustableQuantity = {
-        enabled: true,
-        minimum: 1,
-        maximum: 10
-      };
+    const selectionId = crypto.randomUUID();
 
-      if (product.stripe_price_id) {
-        return {
-          price: product.stripe_price_id,
-          quantity,
-          adjustable_quantity: adjustableQuantity
-        };
-      }
+    const { error: selectionError } = await supabase
+      .from("starter_pack_checkout_selections")
+      .insert({
+        id: selectionId,
+        pack_id: pack.id,
+        pack_slug: pack.slug,
+        items: checkoutPlan.selectionItems
+      });
 
-      return {
-        price_data: {
-          currency: "usd",
-          unit_amount: product.price_cents!,
-          product_data: {
-            name: product.name,
-            description: product.description ?? undefined,
-            images: isPublicImageUrl(product.image_url) ? [product.image_url] : undefined,
-            metadata: {
-              product_id: product.id,
-              pack_slug: packSlug,
-              category: product.category
-            }
-          }
-        },
-        quantity,
-        adjustable_quantity: adjustableQuantity
-      };
-    });
+    if (selectionError) {
+      console.error("Starter pack checkout selection save failed", selectionError);
+      return NextResponse.json({ error: friendlyCheckoutError }, { status: 500 });
+    }
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      line_items: lineItems,
+      line_items: checkoutPlan.lineItems,
       success_url: `${siteUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${siteUrl}/parts/packs/${encodeURIComponent(packSlug)}`,
       shipping_address_collection: {
         allowed_countries: ["US", "CA"]
       },
       metadata: {
+        checkout_type: "custom_pack",
         source: "starter_pack",
-        pack_slug: packSlug,
-        selected_product_ids: partIds.join(",")
+        selection_id: selectionId,
+        pack_id: pack.id,
+        pack_slug: pack.slug
       }
     });
+
+    const { error: sessionUpdateError } = await supabase
+      .from("starter_pack_checkout_selections")
+      .update({ stripe_checkout_session_id: session.id })
+      .eq("id", selectionId);
+
+    if (sessionUpdateError) {
+      console.error("Starter pack checkout selection session update failed", sessionUpdateError);
+      return NextResponse.json({ error: friendlyCheckoutError }, { status: 500 });
+    }
 
     return NextResponse.json({ url: session.url });
   } catch (checkoutError) {
     console.error("Starter pack checkout session creation failed", checkoutError);
     return NextResponse.json({ error: friendlyCheckoutError }, { status: 500 });
   }
-}
-
-function isPositiveCents(value: number | null | undefined): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value > 0;
-}
-
-function isPublicImageUrl(value: string | null | undefined): value is string {
-  return Boolean(value?.startsWith("https://") || value?.startsWith("http://"));
 }

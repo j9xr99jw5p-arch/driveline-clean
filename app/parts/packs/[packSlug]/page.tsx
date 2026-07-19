@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PartCatalogCard } from "@/app/parts/PartsGrid";
 import { getActivePackBySlug } from "@/lib/packs";
-import { BuyAllPackButton } from "./BuyAllPackButton";
+import { PackCheckoutSelector } from "./PackCheckoutSelector";
 
 export const dynamic = "force-dynamic";
 export const dynamicParams = true;
@@ -22,9 +21,6 @@ export default async function PartPackPage({ params }: { params: Promise<{ packS
   const pack = packResult.pack;
 
   const packProducts = pack.products;
-  const buyAllItems = packProducts
-    .filter((product) => product.selectedByDefault)
-    .map((product) => ({ partId: product.id, quantity: product.packQuantity }));
 
   return (
     <section className="band">
@@ -37,21 +33,11 @@ export default async function PartPackPage({ params }: { params: Promise<{ packS
             <p className="muted">{packProducts.length} {packProducts.length === 1 ? "product" : "products"} available</p>
           </div>
           <div className="pack-page-actions">
-            <BuyAllPackButton packSlug={pack.slug} items={buyAllItems} />
             <Link className="button" href="/parts">Back to all parts</Link>
           </div>
         </div>
 
-        {packProducts.length ? (
-          <div className="grid three">
-            {packProducts.map((product) => <PartCatalogCard product={product} key={product.id} />)}
-          </div>
-        ) : (
-          <div className="pack-empty-state">
-            <h2>No products are currently assigned to this pack.</h2>
-            <p className="muted">Use Manage Packs in admin to add products without changing their catalog categories.</p>
-          </div>
-        )}
+        <PackCheckoutSelector packSlug={pack.slug} products={packProducts} />
       </div>
     </section>
   );

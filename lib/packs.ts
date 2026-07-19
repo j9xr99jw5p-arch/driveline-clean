@@ -1,5 +1,11 @@
 import "server-only";
-import { displayProductCategory, type ProductSummary } from "@/lib/products";
+import {
+  applyVariantAddOnPricing,
+  displayProductCategory,
+  mapVariant,
+  type ProductSummary,
+  type ProductVariantRow
+} from "@/lib/products";
 import { getStripePriceMap, resolveDisplayPrice } from "@/lib/stripePrices";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -37,6 +43,8 @@ type ProductRow = {
   price_cents: number | null;
   stripe_price_id: string | null;
   active: boolean;
+  inventory_status?: string | null;
+  product_variants?: ProductVariantRow[] | null;
 };
 
 type PackProductRow = {
@@ -96,7 +104,23 @@ export async function getActivePackBySlug(slug: string): Promise<PackLookupResul
           image_url,
           price_cents,
           stripe_price_id,
-          active
+          active,
+          inventory_status,
+          product_variants (
+            id,
+            variant_name,
+            light_pattern,
+            beam_pattern,
+            lens_color,
+            harness_included,
+            dielectric_grease_included,
+            protective_film_included,
+            stripe_price_id,
+            image_url,
+            active,
+            inventory_status,
+            price_cents
+          )
         )
       )
     `)
@@ -118,7 +142,7 @@ export async function getActivePackBySlug(slug: string): Promise<PackLookupResul
   const productRows = (row.pack_products ?? [])
     .map((item) => Array.isArray(item.products) ? item.products[0] : item.products)
     .filter((product): product is ProductRow => Boolean(product?.active));
-  const stripePrices = await getStripePriceMap(productRows.map((product) => product.stripe_price_id));
+  const stripePrices = await getStripePriceMap(getPackStripePriceIds(productRows));
 
   return {
     status: "found",
@@ -159,7 +183,23 @@ export async function getActivePacks(): Promise<ProductPack[]> {
           image_url,
           price_cents,
           stripe_price_id,
-          active
+          active,
+          inventory_status,
+          product_variants (
+            id,
+            variant_name,
+            light_pattern,
+            beam_pattern,
+            lens_color,
+            harness_included,
+            dielectric_grease_included,
+            protective_film_included,
+            stripe_price_id,
+            image_url,
+            active,
+            inventory_status,
+            price_cents
+          )
         )
       )
     `)
@@ -177,7 +217,7 @@ export async function getActivePacks(): Promise<ProductPack[]> {
     .flatMap((pack) => pack.pack_products ?? [])
     .map((item) => Array.isArray(item.products) ? item.products[0] : item.products)
     .filter((product): product is ProductRow => Boolean(product?.active));
-  const stripePrices = await getStripePriceMap(productRows.map((product) => product.stripe_price_id));
+  const stripePrices = await getStripePriceMap(getPackStripePriceIds(productRows));
 
   return rows.map((row) => ({
     ...mapPackSummary(row),
@@ -210,6 +250,22 @@ function mapPackProduct(
     stripePriceId: product.stripe_price_id,
     priceCents: product.price_cents
   }, stripePrices);
+  const variants = (product.product_variants ?? [])
+    .filter((variant) => variant.active && variant.inventory_status !== "inactive")
+    .map((variantRow) => {
+      const variant = mapVariant(variantRow);
+      const variantPrice = resolveDisplayPrice({
+        stripePriceId: variant.stripePriceId,
+        priceCents: variant.priceCents
+      }, stripePrices);
+
+      return applyVariantAddOnPricing({
+        ...variant,
+        priceCents: variantPrice.priceCents,
+        priceLabel: variantPrice.priceLabel,
+        priceSource: variantPrice.priceSource
+      });
+    });
 
   return {
     id: product.id,
@@ -225,7 +281,7 @@ function mapPackProduct(
     priceSource: price.priceSource,
     stripePriceId: product.stripe_price_id,
     buildCount: 0,
-    variants: [],
+    variants,
     reviewSentiment: null,
     reviewSummary: null,
     reviewPraise: null,
@@ -240,6 +296,13 @@ function mapPackProduct(
     selectedByDefault: item.selected_by_default ?? true,
     packSortOrder: item.sort_order ?? 0
   };
+}
+
+function getPackStripePriceIds(products: ProductRow[]) {
+  return products.flatMap((product) => [
+    product.stripe_price_id,
+    ...(product.product_variants ?? []).map((variant) => variant.stripe_price_id)
+  ]);
 }
 
 function dedupePackProducts(products: PackProduct[]) {

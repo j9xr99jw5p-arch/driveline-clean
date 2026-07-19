@@ -1708,6 +1708,125 @@ p {
   width: 100%;
 }
 
+.pack-checkout-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  gap: 2rem;
+  align-items: start;
+}
+
+.pack-selection-toolbar {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.9rem 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.pack-selection-toolbar strong {
+  color: var(--text-primary);
+}
+
+.pack-selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: flex-end;
+}
+
+.pack-selectable-grid {
+  align-self: start;
+}
+
+.pack-selectable-card {
+  min-height: 100%;
+}
+
+.pack-selectable-card.selected {
+  border-color: rgba(96, 165, 250, 0.72);
+  background: rgba(59, 130, 246, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.22);
+}
+
+.pack-selectable-card.unavailable {
+  opacity: 0.68;
+}
+
+.pack-selectable-body {
+  gap: 0.75rem;
+}
+
+.pack-selectable-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.7rem;
+  align-items: flex-start;
+}
+
+.pack-selectable-head .eyebrow {
+  margin-top: 0.35rem;
+}
+
+.pack-select-button {
+  min-height: 36px;
+  flex: 0 0 auto;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  border-radius: 999px;
+  background: rgba(15, 18, 24, 0.24);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.pack-select-button.selected,
+.pack-select-button:hover,
+.pack-select-button:focus-visible {
+  border-color: var(--accent-blue-light);
+  background: rgba(59, 130, 246, 0.22);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.pack-select-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.pack-variant-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.pack-variant-field span {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.pack-variant-field select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(5, 6, 8, 0.72);
+  color: var(--text-primary);
+  padding: 0.55rem 0.7rem;
+}
+
+.pack-variant-field select:disabled {
+  opacity: 0.58;
+}
+
+.pack-checkout-summary {
+  grid-column: 2;
+  grid-row: 2;
+}
+
 .pack-empty-state {
   display: grid;
   gap: 0.6rem;
@@ -3180,6 +3299,42 @@ p {
 
   .starter-pack-quantity {
     justify-content: flex-start;
+  }
+
+  .pack-checkout-layout {
+    grid-template-columns: 1fr;
+    padding-bottom: 9rem;
+  }
+
+  .pack-selection-toolbar,
+  .pack-selectable-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pack-selection-actions {
+    justify-content: flex-start;
+  }
+
+  .pack-checkout-summary {
+    position: fixed;
+    left: 0.85rem;
+    right: 0.85rem;
+    bottom: 0.85rem;
+    z-index: 30;
+    grid-column: auto;
+    grid-row: auto;
+    padding: 0.85rem;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 8px;
+    background: rgba(5, 6, 8, 0.96);
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.46);
+  }
+
+  .pack-checkout-summary h2,
+  .pack-checkout-summary .starter-pack-summary-links,
+  .pack-checkout-summary .fine {
+    display: none;
   }
 
   .parts-catalog-main .grid.three {

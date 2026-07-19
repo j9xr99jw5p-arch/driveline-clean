@@ -11,6 +11,7 @@ import {
   saveUsersTableStripeCustomerId,
   upsertUserPlanForSubscription
 } from "@/lib/billing";
+import { buildOrderItemRows, normalizeSelectedItems } from "@/lib/packCheckout";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
 
@@ -188,7 +189,8 @@ export async function POST(request: Request) {
   async function syncProductOrder(session: Stripe.Checkout.Session, stripeEvent: Stripe.Event) {
     devLog("Stripe webhook payment mode:", session.mode);
 
-    const productId = session.metadata?.product_id ?? null;
+    const isCustomPackCheckout = session.metadata?.checkout_type === "custom_pack";
+    const productId = isCustomPackCheckout ? null : session.metadata?.product_id ?? null;
     const variantId = session.metadata?.variant_id ?? null;
     const buildId = session.metadata?.build_id || null;
     const paymentIntentId = normalizePaymentIntentId(session.payment_intent);
@@ -198,8 +200,10 @@ export async function POST(request: Request) {
       ? new Date(stripeEvent.created * 1000).toISOString()
       : null;
 
-    const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 });
-    const quantity = lineItems.data[0]?.quantity ?? 1;
+    const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 100 });
+    const quantity = isCustomPackCheckout
+      ? lineItems.data.reduce((total, item) => total + (item.quantity ?? 1), 0)
+      : lineItems.data[0]?.quantity ?? 1;
 
     devLog("Stripe product purchase:", {
       productId,
@@ -233,7 +237,71 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     devLog("Product order insert result:", { data, error });
-    if (error) console.error("Product order upsert failed", error);
+    if (error) {
+      console.error("Product order upsert failed", error);
+      return;
+    }
+
+    if (isCustomPackCheckout && data?.id) {
+      await syncCustomPackOrderItems({
+        orderId: data.id,
+        lineItems: lineItems.data,
+        session
+      });
+    }
+  }
+
+  async function syncCustomPackOrderItems({
+    orderId,
+    lineItems,
+    session
+  }: {
+    orderId: string;
+    lineItems: Stripe.LineItem[];
+    session: Stripe.Checkout.Session;
+  }) {
+    const selectionId = session.metadata?.selection_id ?? null;
+    if (!selectionId) {
+      console.error("Custom pack order item sync skipped; missing selection id", { sessionId: session.id });
+      return;
+    }
+
+    const { data: selection, error: selectionError } = await supabase
+      .from("starter_pack_checkout_selections")
+      .select("items")
+      .eq("id", selectionId)
+      .maybeSingle();
+
+    if (selectionError || !selection) {
+      console.error("Custom pack selection lookup failed", { selectionId, error: selectionError });
+      return;
+    }
+
+    const selectedItems = normalizeSelectedItems(selection.items);
+    if (!selectedItems.length) {
+      console.error("Custom pack order item sync skipped; selection has no items", { selectionId });
+      return;
+    }
+
+    let orderItemRows;
+    try {
+      orderItemRows = buildOrderItemRows({
+        orderId,
+        sessionId: session.id,
+        sessionCurrency: session.currency,
+        selectedItems,
+        stripeLineItems: lineItems
+      });
+    } catch (mappingError) {
+      console.error("Custom pack order item mapping failed", mappingError);
+      return;
+    }
+
+    const { error: itemError } = await supabase
+      .from("order_items")
+      .upsert(orderItemRows, { onConflict: "stripe_line_item_id" });
+
+    if (itemError) console.error("Custom pack order items upsert failed", itemError);
   }
 }
 
