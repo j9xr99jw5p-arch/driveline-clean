@@ -103,7 +103,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Pack changes were saved, but stale assignments could not be removed." }, { status: 500 });
   }
 
-  revalidatePath("/admin/verified-builds");
+  revalidatePath("/admin");
+  revalidatePath("/admin/packs");
   revalidatePath("/parts");
   revalidatePath("/parts/starter-packs");
   revalidatePath(`/parts/packs/${pack.slug}`);

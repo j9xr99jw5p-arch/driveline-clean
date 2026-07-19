@@ -85,6 +85,10 @@ export function AdminPackManager({ data }: { data: PackManagementData }) {
   }
 
   function removeProduct(productId: string) {
+    const product = productById.get(productId);
+    const confirmed = window.confirm(`Remove ${product?.name ?? "this product"} from ${selectedPack?.name ?? "this pack"}?`);
+    if (!confirmed) return;
+
     updateAssignments(assignments.filter((assignment) => assignment.productId !== productId));
   }
 
