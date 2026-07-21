@@ -16,7 +16,9 @@ type PackCheckoutProduct = {
   imageUrl: string | null;
   priceCents: number | null;
   priceLabel: string | null;
+  priceSource?: "stripe" | "database" | "unavailable";
   stripePriceId: string | null;
+  inventoryStatus?: string | null;
   variants: ProductVariantOption[];
   packQuantity: number;
   selectedByDefault: boolean;
@@ -50,6 +52,7 @@ export function PackCheckoutSelector({ packSlug, products }: PackCheckoutSelecto
   const selectedAllAvailable = products
     .filter((product) => getAvailability(product).available)
     .every((product) => selected[product.id]);
+  const availableProducts = products.filter((product) => getAvailability(product).available);
 
   function setProductSelected(product: PackCheckoutProduct, nextSelected: boolean) {
     if (!getAvailability(product).available) return;
@@ -167,19 +170,6 @@ export function PackCheckoutSelector({ packSlug, products }: PackCheckoutSelecto
         </div>
       </div>
 
-      {selectionOpen ? (
-        <>
-      <div className="pack-selection-toolbar" aria-label="Pack selection controls">
-        <div>
-          <p className="eyebrow">Selected Parts</p>
-          <strong>{selectedCount} {selectedCount === 1 ? "part" : "parts"} selected</strong>
-        </div>
-        <div className="pack-selection-actions">
-          <button className="button" disabled={selectedAllAvailable} onClick={selectAll} type="button">Select All</button>
-          <button className="button" disabled={!selectedCount} onClick={clearAll} type="button">Clear All</button>
-        </div>
-      </div>
-
       <div className="grid three pack-selectable-grid">
         {products.map((product) => {
           const availability = getAvailability(product);
@@ -204,21 +194,23 @@ export function PackCheckoutSelector({ packSlug, products }: PackCheckoutSelecto
               <div className="part-card-body pack-selectable-body">
                 <div className="pack-selectable-head">
                   <p className="eyebrow">{[product.brand, product.category].filter(Boolean).join(" / ")}</p>
-                  <button
-                    aria-pressed={isSelected}
-                    className={`pack-select-button ${isSelected ? "selected" : ""}`}
-                    disabled={!availability.available}
-                    onClick={() => setProductSelected(product, !isSelected)}
-                    type="button"
-                  >
-                    {isSelected ? "Selected" : "Select part"}
-                  </button>
+                  {selectionOpen ? (
+                    <button
+                      aria-pressed={isSelected}
+                      className={`pack-select-button ${isSelected ? "selected" : ""}`}
+                      disabled={!availability.available}
+                      onClick={() => setProductSelected(product, !isSelected)}
+                      type="button"
+                    >
+                      {isSelected ? "Selected" : "Select part"}
+                    </button>
+                  ) : null}
                 </div>
                 <h3>{product.name}</h3>
                 {product.description ? <p className="muted part-card-description">{product.description}</p> : null}
                 <div className="part-card-meta">
                   <strong>{priceLabel}</strong>
-                  <span>{product.variants.length ? "Option required" : "Ready for checkout"}</span>
+                  <span>{getProductStatusLabel(product, availability.available)}</span>
                 </div>
                 {isAdvancedPack ? <p className="advanced-product-label">Advanced installation</p> : null}
                 {!availability.available ? <p className="form-error">{availability.reason}</p> : null}
@@ -226,7 +218,7 @@ export function PackCheckoutSelector({ packSlug, products }: PackCheckoutSelecto
                   <label className="field pack-variant-field">
                     <span>Option</span>
                     <select
-                      disabled={!isSelected}
+                      disabled={!selectionOpen || !isSelected}
                       onChange={(event) => {
                         setSelectedVariants((current) => ({ ...current, [product.id]: event.target.value }));
                         setError(null);
@@ -253,7 +245,7 @@ export function PackCheckoutSelector({ packSlug, products }: PackCheckoutSelecto
                   </label>
                 ) : null}
                 {missingVariant ? <p className="form-error">Choose an option for this part.</p> : null}
-                {isSelected ? (
+                {selectionOpen && isSelected ? (
                   <div className="starter-pack-quantity">
                     <span>Qty</span>
                     <button disabled={quantity <= 1} onClick={() => updateQuantity(product.id, quantity - 1)} type="button">-</button>
@@ -266,6 +258,19 @@ export function PackCheckoutSelector({ packSlug, products }: PackCheckoutSelecto
             </article>
           );
         })}
+      </div>
+
+      {selectionOpen ? (
+        <>
+      <div className="pack-selection-toolbar" aria-label="Pack selection controls">
+        <div>
+          <p className="eyebrow">Selected Parts</p>
+          <strong>{selectedCount} {selectedCount === 1 ? "part" : "parts"} selected</strong>
+        </div>
+        <div className="pack-selection-actions">
+          <button className="button" disabled={!availableProducts.length || selectedAllAvailable} onClick={selectAll} type="button">Select All</button>
+          <button className="button" disabled={!selectedCount} onClick={clearAll} type="button">Clear All</button>
+        </div>
       </div>
 
       <PackCheckoutSummary
@@ -346,17 +351,34 @@ function getInitialState(products: PackCheckoutProduct[]) {
 
 function getAvailability(product: PackCheckoutProduct) {
   if (product.variants.length) {
-    if (!product.variants.some(isVariantPurchasable)) {
+    if (product.variants.some(isVariantPurchasable)) {
+      return { available: true, reason: null };
+    }
+
+    if (product.variants.some((variant) => variant.inventoryStatus === "out_of_stock")) {
       return { available: false, reason: "Out of stock." };
     }
-    return { available: true, reason: null };
+
+    return { available: false, reason: "No purchasable options are currently available." };
   }
 
-  if (!product.stripePriceId) {
-    return { available: false, reason: "Stripe price unavailable." };
+  if (product.priceSource === "unavailable" || !product.stripePriceId) {
+    return { available: false, reason: "Checkout pricing unavailable." };
+  }
+
+  if (product.inventoryStatus === "out_of_stock") {
+    return { available: false, reason: "Out of stock." };
   }
 
   return { available: true, reason: null };
+}
+
+function getProductStatusLabel(product: PackCheckoutProduct, available: boolean) {
+  if (product.variants.length) {
+    return available ? "Option required" : "Unavailable";
+  }
+
+  return available ? "Ready for checkout" : "Unavailable";
 }
 
 function getBuyAllCheckoutItem(product: PackCheckoutProduct): CheckoutItem | null {

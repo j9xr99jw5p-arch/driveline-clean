@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   buildStarterPackCheckoutPlan,
-  PackCheckoutValidationError,
-  type PackCheckoutRow
+  PackCheckoutValidationError
 } from "@/lib/packCheckout";
+import { getActivePackCheckoutRowBySlug } from "@/lib/packs";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
 
@@ -47,50 +47,17 @@ export async function POST(request: Request) {
   }
 
   const packSlug = parsed.data.packSlug!;
-  const supabase = createSupabaseAdminClient();
-  const { data: packData, error } = await supabase
-    .from("packs")
-    .select(`
-      id,
-      slug,
-      pack_products (
-        product_id,
-        products (
-          id,
-          name,
-          category,
-          description,
-          image_url,
-          price_cents,
-          stripe_price_id,
-          active,
-          inventory_status,
-          product_variants (
-            id,
-            product_id,
-            variant_name,
-            stripe_price_id,
-            active,
-            inventory_status,
-            price_cents
-          )
-        )
-      )
-    `)
-    .eq("active", true)
-    .eq("slug", packSlug)
-    .maybeSingle();
+  const packResult = await getActivePackCheckoutRowBySlug(packSlug);
 
-  if (error) {
-    console.error("Starter pack checkout pack lookup failed", error);
+  if (packResult.status === "error") {
     return NextResponse.json({ error: friendlyCheckoutError }, { status: 500 });
   }
 
-  if (!packData) {
+  if (packResult.status === "not_found") {
     return NextResponse.json({ error: "This starter pack is no longer available." }, { status: 404 });
   }
 
-  const pack = packData as PackCheckoutRow;
+  const pack = packResult.row;
   let checkoutPlan: ReturnType<typeof buildStarterPackCheckoutPlan>;
   try {
     checkoutPlan = buildStarterPackCheckoutPlan(pack, parsed.data.items);
@@ -102,6 +69,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const supabase = createSupabaseAdminClient();
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
     const stripe = getStripe();
     const selectionId = crypto.randomUUID();

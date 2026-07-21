@@ -8,8 +8,11 @@ import { getProductReviewSummary, getReviewPreviewText, normalizeProductCategory
 export function PartsGrid({ products, categories, packs }: { products: ProductSummary[]; categories: string[]; packs: PackSummary[] }) {
   const [category, setCategory] = useState("all");
   const filteredProducts = useMemo(() => {
-    if (category === "all") return products;
-    return products.filter((product) => normalizeProductCategory(product.category) === normalizeProductCategory(category));
+    const visibleProducts = category === "all"
+      ? products
+      : products.filter((product) => normalizeProductCategory(product.category) === normalizeProductCategory(category));
+
+    return visibleProducts.slice().sort((left, right) => left.name.localeCompare(right.name));
   }, [category, products]);
 
   return (

@@ -43,7 +43,6 @@ export async function getPartsCatalog() {
     .from("products")
     .select("id, slug, name, brand, category, description, image_url, price_cents, stripe_price_id, review_sentiment, review_summary, review_praise, review_complaints, review_takeaway, review_count_analyzed, review_rating_average, review_rating_breakdown, review_source_name, review_source_url, product_images(url, sort_order)")
     .eq("active", true)
-    .order("category", { ascending: true })
     .order("name", { ascending: true });
   let productRows = productResult.data as ProductRow[] | null;
   let productError = productResult.error;
@@ -53,7 +52,6 @@ export async function getPartsCatalog() {
       .from("products")
       .select("id, name, brand, category, description, image_url, stripe_price_id")
       .eq("active", true)
-      .order("category", { ascending: true })
       .order("name", { ascending: true });
 
     productRows = fallback.data as ProductRow[] | null;

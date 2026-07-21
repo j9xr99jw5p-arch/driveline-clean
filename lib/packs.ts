@@ -8,6 +8,7 @@ import {
 } from "@/lib/products";
 import { getStripePriceMap, resolveDisplayPrice } from "@/lib/stripePrices";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { PackCheckoutRow } from "@/lib/packCheckout";
 
 export type PackSummary = {
   id: string;
@@ -18,6 +19,7 @@ export type PackSummary = {
 };
 
 export type PackProduct = ProductSummary & {
+  inventoryStatus: string | null;
   packQuantity: number;
   selectedByDefault: boolean;
   packSortOrder: number;
@@ -45,7 +47,7 @@ type ProductRow = {
   active: boolean;
   inventory_status?: string | null;
   product_images?: Array<{ url: string | null; sort_order: number | null }> | null;
-  product_variants?: ProductVariantRow[] | null;
+  product_variants?: Array<ProductVariantRow & { product_id: string }> | null;
 };
 
 type PackProductRow = {
@@ -63,6 +65,11 @@ type PackRow = {
   sort_order: number | null;
   pack_products?: PackProductRow[] | null;
 };
+
+type PackQueryResult =
+  | { status: "found"; row: PackRow }
+  | { status: "not_found" }
+  | { status: "error" };
 
 export async function getActivePackSummaries(): Promise<PackSummary[]> {
   const supabase = createSupabaseAdminClient();
@@ -95,6 +102,39 @@ export async function getActivePackSummaries(): Promise<PackSummary[]> {
 }
 
 export async function getActivePackBySlug(slug: string): Promise<PackLookupResult> {
+  const packResult = await getActivePackProductRowsBySlug(slug);
+
+  if (packResult.status !== "found") {
+    return packResult;
+  }
+
+  const row = packResult.row;
+  const productRows = getActivePackProducts(row);
+  const stripePrices = await getStripePriceMap(getPackStripePriceIds(productRows));
+
+  return {
+    status: "found",
+    pack: {
+      ...mapPackSummary(row),
+      products: mapVisiblePackProducts(row, stripePrices)
+    }
+  };
+}
+
+export async function getActivePackCheckoutRowBySlug(slug: string): Promise<PackQueryResult & { row?: PackRow & PackCheckoutRow }> {
+  const packResult = await getActivePackProductRowsBySlug(slug);
+
+  if (packResult.status !== "found") {
+    return packResult;
+  }
+
+  return {
+    status: "found",
+    row: toPackCheckoutRow(packResult.row) as PackRow & PackCheckoutRow
+  };
+}
+
+async function getActivePackProductRowsBySlug(slug: string): Promise<PackQueryResult> {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from("packs")
@@ -126,6 +166,7 @@ export async function getActivePackBySlug(slug: string): Promise<PackLookupResul
           ),
           product_variants (
             id,
+            product_id,
             variant_name,
             light_pattern,
             beam_pattern,
@@ -143,7 +184,7 @@ export async function getActivePackBySlug(slug: string): Promise<PackLookupResul
       )
     `)
     .eq("active", true)
-    .eq("slug", slug)
+    .eq("slug", normalizePackSlug(slug))
     .order("sort_order", { referencedTable: "pack_products", ascending: true })
     .maybeSingle();
 
@@ -156,26 +197,9 @@ export async function getActivePackBySlug(slug: string): Promise<PackLookupResul
     return { status: "not_found" };
   }
 
-  const row = data as PackRow;
-  const productRows = getActivePackProducts(row);
-  if (!productRows.length) {
-    return { status: "not_found" };
-  }
-
-  const stripePrices = await getStripePriceMap(getPackStripePriceIds(productRows));
-
   return {
     status: "found",
-    pack: {
-      ...mapPackSummary(row),
-      products: dedupePackProducts((row.pack_products ?? [])
-        .map((item) => {
-          const product = Array.isArray(item.products) ? item.products[0] : item.products;
-          if (!isActivePackProduct(product)) return null;
-          return mapPackProduct(product, item, stripePrices);
-        })
-        .filter((product): product is PackProduct => Boolean(product)))
-    }
+    row: data as PackRow
   };
 }
 
@@ -211,6 +235,7 @@ export async function getActivePacks(): Promise<ProductPack[]> {
           ),
           product_variants (
             id,
+            product_id,
             variant_name,
             light_pattern,
             beam_pattern,
@@ -264,7 +289,11 @@ function getActivePackProducts(row: PackRow) {
 }
 
 function isActivePackProduct(product: ProductRow | null | undefined): product is ProductRow {
-  return Boolean(product?.active);
+  return Boolean(product?.active && product.inventory_status !== "inactive");
+}
+
+function normalizePackSlug(slug: string) {
+  return slug.trim().toLowerCase();
 }
 
 function mapPackSummary(row: PackRow): PackSummary {
@@ -316,6 +345,7 @@ function mapPackProduct(
     priceLabel: price.priceLabel,
     priceSource: price.priceSource,
     stripePriceId: product.stripe_price_id,
+    inventoryStatus: product.inventory_status ?? null,
     buildCount: 0,
     variants,
     reviewSentiment: null,
@@ -331,6 +361,60 @@ function mapPackProduct(
     packQuantity: Math.max(1, Math.min(10, item.quantity ?? 1)),
     selectedByDefault: item.selected_by_default ?? true,
     packSortOrder: item.sort_order ?? 0
+  };
+}
+
+function mapVisiblePackProducts(
+  row: PackRow,
+  stripePrices: Awaited<ReturnType<typeof getStripePriceMap>>
+) {
+  return dedupePackProducts((row.pack_products ?? [])
+    .map((item) => {
+      const product = Array.isArray(item.products) ? item.products[0] : item.products;
+      if (!isActivePackProduct(product)) return null;
+      return mapPackProduct(product, item, stripePrices);
+    })
+    .filter((product): product is PackProduct => Boolean(product)));
+}
+
+function toPackCheckoutRow(row: PackRow): PackCheckoutRow {
+  const packProducts: NonNullable<PackCheckoutRow["pack_products"]> = [];
+
+  (row.pack_products ?? []).forEach((item) => {
+    const product = Array.isArray(item.products) ? item.products[0] : item.products;
+    if (!isActivePackProduct(product)) return;
+
+    packProducts.push({
+      product_id: product.id,
+      products: {
+        id: product.id,
+        name: product.name,
+        category: displayProductCategory(product.category),
+        description: product.description,
+        image_url: getProductCardImageUrl(product),
+        price_cents: product.price_cents,
+        stripe_price_id: product.stripe_price_id,
+        active: product.active,
+        inventory_status: product.inventory_status ?? null,
+        product_variants: (product.product_variants ?? [])
+          .filter((variant) => variant.active && variant.inventory_status !== "inactive")
+          .map((variant) => ({
+            id: variant.id,
+            product_id: variant.product_id,
+            variant_name: variant.variant_name,
+            stripe_price_id: variant.stripe_price_id,
+            active: variant.active,
+            inventory_status: variant.inventory_status ?? null,
+            price_cents: variant.price_cents
+          }))
+      }
+    });
+  });
+
+  return {
+    id: row.id,
+    slug: row.slug,
+    pack_products: packProducts
   };
 }
 
@@ -363,5 +447,5 @@ function getPackStripePriceIds(products: ProductRow[]) {
 
 function dedupePackProducts(products: PackProduct[]) {
   return Array.from(new Map(products.map((product) => [product.id, product])).values())
-    .sort((a, b) => a.packSortOrder - b.packSortOrder || a.name.localeCompare(b.name));
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
