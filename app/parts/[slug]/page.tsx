@@ -36,6 +36,7 @@ type ProductRow = {
   install_url?: string | null;
   specs?: unknown;
   stripe_price_id: string | null;
+  inventory_status?: string | null;
   product_images?: Array<{ url: string | null; alt_text: string | null; sort_order: number | null }> | null;
   review_sentiment?: string | null;
   review_summary?: string | null;
@@ -67,7 +68,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   const supabase = createSupabaseAdminClient();
   const productResult = await supabase
     .from("products")
-    .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, install_url, specs, stripe_price_id, review_sentiment, review_summary, review_praise, review_complaints, review_takeaway, review_count_analyzed, review_rating_average, review_rating_breakdown, review_source_name, review_source_url, product_images(url, alt_text, sort_order)")
+    .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, install_url, specs, stripe_price_id, inventory_status, review_sentiment, review_summary, review_praise, review_complaints, review_takeaway, review_count_analyzed, review_rating_average, review_rating_breakdown, review_source_name, review_source_url, product_images(url, alt_text, sort_order)")
     .eq("active", true)
     .eq("slug", slug)
     .maybeSingle();
@@ -77,7 +78,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   if (!product && isUuid(slug)) {
     const idResult = await supabase
       .from("products")
-      .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, install_url, specs, stripe_price_id, review_sentiment, review_summary, review_praise, review_complaints, review_takeaway, review_count_analyzed, review_rating_average, review_rating_breakdown, review_source_name, review_source_url, product_images(url, alt_text, sort_order)")
+      .select("id, slug, name, brand, category, description, image_url, price_cents, affiliate_url, install_url, specs, stripe_price_id, inventory_status, review_sentiment, review_summary, review_praise, review_complaints, review_takeaway, review_count_analyzed, review_rating_average, review_rating_breakdown, review_source_name, review_source_url, product_images(url, alt_text, sort_order)")
       .eq("active", true)
       .eq("id", slug)
       .maybeSingle();
@@ -89,7 +90,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   if (productError?.code === "42703" || productError?.code === "PGRST200" || productError?.code === "PGRST204") {
     const fallbackQuery = supabase
       .from("products")
-      .select("id, slug, name, brand, category, description, image_url, stripe_price_id")
+      .select("id, slug, name, brand, category, description, image_url, stripe_price_id, inventory_status")
       .eq("active", true);
     const fallback = isUuid(slug)
       ? await fallbackQuery.eq("id", slug).maybeSingle()
@@ -187,6 +188,11 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   const hasSelectableVariants = hasRealProductVariants(variants);
   const singleCheckoutVariant = !hasSelectableVariants ? getSinglePurchasableVariant(variants) : null;
   const singleCheckoutVariantInStock = singleCheckoutVariant ? singleCheckoutVariant.inventoryStatus !== "out_of_stock" : false;
+  const productCheckoutAvailable = !hasSelectableVariants
+    && !singleCheckoutVariant
+    && Boolean(product.stripe_price_id)
+    && product.inventory_status !== "out_of_stock"
+    && product.inventory_status !== "inactive";
   const firstVariantPrice = variants.find((variant) => variant.priceSource !== "unavailable") ?? null;
   const displayPrice = resolveDisplayPrice({
     stripePriceId: product.stripe_price_id,
@@ -197,6 +203,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
   const cleanDescription = sanitizeProductDescription(product.description);
   const installInstructionsUrl = getInstallInstructionsUrl(product);
   const productSpecs = getProductSpecs(product);
+  const productWarnings = getProductWarnings(product);
   const productDetails = getProductDetailContext(product);
   const ownerReview = getProductReviewSummary(product);
   const buildLinks = (linkRows ?? [])
@@ -232,6 +239,7 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
                 {getBestForPills(product).map((pill) => <span key={pill}>{pill}</span>)}
               </div>
             ) : null}
+            {productWarnings.length ? <ProductWarningPanel warnings={productWarnings} /> : null}
             {hasSelectableVariants ? (
               <PartVariantSelector compact variants={variants} />
             ) : singleCheckoutVariant ? (
@@ -242,6 +250,15 @@ export default async function PartDetailPage({ params }: { params: Promise<{ slu
                   {!singleCheckoutVariantInStock ? <span>Out of stock</span> : null}
                 </div>
                 <ProductCheckoutButton disabled={!singleCheckoutVariantInStock} label="Buy this part" variantId={singleCheckoutVariant.id} />
+              </div>
+            ) : product.stripe_price_id ? (
+              <div className="part-variant-panel compact">
+                <div className="part-selected-variant">
+                  <strong>{product.name}</strong>
+                  {priceLabel ? <span>{priceLabel}</span> : null}
+                  {!productCheckoutAvailable ? <span>Out of stock</span> : null}
+                </div>
+                <ProductCheckoutButton disabled={!productCheckoutAvailable} label="Buy this part" productId={product.id} />
               </div>
             ) : null}
             {productSpecs.length ? <ProductSpecs specs={productSpecs} /> : null}
@@ -430,6 +447,17 @@ function ProductSpecs({ specs }: { specs: Array<readonly [string, string]> }) {
   );
 }
 
+function ProductWarningPanel({ warnings }: { warnings: string[] }) {
+  return (
+    <section className="part-warning-panel" aria-label="Important product notes">
+      <h2>Check compatibility before checkout</h2>
+      <ul>
+        {warnings.map((warning) => <li key={warning}>{warning}</li>)}
+      </ul>
+    </section>
+  );
+}
+
 function isEmptySpecs(specs: unknown) {
   return Object.keys(normalizeSpecs(specs)).length === 0;
 }
@@ -470,6 +498,16 @@ function hasSpec(product: ProductRow, label: string) {
   if (isEmptySpecs(specs)) return false;
 
   return Object.keys(specs).some((key) => key.toLowerCase().trim() === label.toLowerCase().trim());
+}
+
+function getProductWarnings(product: ProductRow) {
+  const specs = normalizeSpecs(product.specs);
+  if (isEmptySpecs(specs)) return [];
+
+  return Object.entries(specs)
+    .filter(([label]) => label.toLowerCase().includes("warning") || label.toLowerCase().includes("compatibility note"))
+    .map(([, value]) => formatSpecValue(value))
+    .filter(Boolean);
 }
 
 function getFitmentText(product: ProductRow) {

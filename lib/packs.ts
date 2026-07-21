@@ -44,6 +44,7 @@ type ProductRow = {
   stripe_price_id: string | null;
   active: boolean;
   inventory_status?: string | null;
+  product_images?: Array<{ url: string | null; sort_order: number | null }> | null;
   product_variants?: ProductVariantRow[] | null;
 };
 
@@ -106,6 +107,10 @@ export async function getActivePackBySlug(slug: string): Promise<PackLookupResul
           stripe_price_id,
           active,
           inventory_status,
+          product_images (
+            url,
+            sort_order
+          ),
           product_variants (
             id,
             variant_name,
@@ -185,6 +190,10 @@ export async function getActivePacks(): Promise<ProductPack[]> {
           stripe_price_id,
           active,
           inventory_status,
+          product_images (
+            url,
+            sort_order
+          ),
           product_variants (
             id,
             variant_name,
@@ -274,8 +283,8 @@ function mapPackProduct(
     brand: product.brand,
     category: displayProductCategory(product.category),
     description: product.description,
-    imageUrl: product.image_url,
-    imageUrls: product.image_url ? [product.image_url] : [],
+    imageUrl: getProductCardImageUrl(product),
+    imageUrls: getProductImageUrls(product),
     priceCents: price.priceCents,
     priceLabel: price.priceLabel,
     priceSource: price.priceSource,
@@ -298,10 +307,30 @@ function mapPackProduct(
   };
 }
 
+function getProductCardImageUrl(product: ProductRow) {
+  return getProductImageUrls(product)[0] ?? null;
+}
+
+function getProductImageUrls(product: ProductRow) {
+  const imageUrls = (product.product_images ?? [])
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map((image) => image.url?.trim())
+    .filter((url): url is string => Boolean(url));
+
+  if (!imageUrls.length && product.image_url?.trim()) {
+    imageUrls.push(product.image_url.trim());
+  }
+
+  return imageUrls;
+}
+
 function getPackStripePriceIds(products: ProductRow[]) {
   return products.flatMap((product) => [
     product.stripe_price_id,
-    ...(product.product_variants ?? []).map((variant) => variant.stripe_price_id)
+    ...(product.product_variants ?? [])
+      .filter((variant) => variant.active && variant.inventory_status !== "inactive")
+      .map((variant) => variant.stripe_price_id)
   ]);
 }
 

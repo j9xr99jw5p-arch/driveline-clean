@@ -174,7 +174,7 @@ function getProductImageUrls(product: ProductRow) {
     .map((image) => image.url)
     .filter(Boolean);
 
-  if (product.image_url && !imageUrls.includes(product.image_url)) {
+  if (!imageUrls.length && product.image_url) {
     imageUrls.push(product.image_url);
   }
 

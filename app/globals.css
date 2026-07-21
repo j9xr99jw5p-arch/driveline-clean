@@ -1697,6 +1697,14 @@ p {
   margin-bottom: 0;
 }
 
+.pack-greeting {
+  max-width: 760px;
+  margin: 0.5rem 0 0.75rem;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
 .pack-page-actions,
 .pack-buy-control {
   display: grid;
@@ -1713,6 +1721,37 @@ p {
   grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
   gap: 2rem;
   align-items: start;
+}
+
+.pack-purchase-choice {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.25rem;
+  align-items: center;
+  padding: 1rem 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.pack-purchase-choice h2,
+.pack-purchase-choice p {
+  margin: 0;
+}
+
+.pack-purchase-choice h2 {
+  font-size: 1.1rem;
+}
+
+.pack-purchase-choice .muted {
+  margin-top: 0.28rem;
+}
+
+.pack-purchase-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: flex-end;
 }
 
 .pack-selection-toolbar {
@@ -2208,6 +2247,31 @@ p {
   line-height: 1.45;
 }
 
+.part-warning-panel {
+  display: grid;
+  gap: 0.65rem;
+  border: 1px solid rgba(245, 158, 11, 0.34);
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.08);
+  padding: 0.9rem;
+}
+
+.part-warning-panel h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.98rem;
+}
+
+.part-warning-panel ul {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
 .part-variant-panel {
   display: grid;
   gap: 1rem;
@@ -2236,6 +2300,23 @@ p {
 .variant-group-stack {
   display: grid;
   gap: 0.85rem;
+}
+
+.variant-prefix-select {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.variant-prefix-select select {
+  width: 100%;
+  min-height: 2.85rem;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(15, 18, 24, 0.62);
+  color: var(--text-primary);
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  font-weight: 750;
 }
 
 .variant-option-group {
@@ -2368,9 +2449,30 @@ p {
   align-items: center;
 }
 
+.part-selected-variant.with-media {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  align-items: center;
+}
+
+.part-selected-variant.with-media img {
+  width: 100%;
+  height: 5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  object-fit: contain;
+}
+
 .part-selected-variant.grouped > span {
   display: grid;
   gap: 0.16rem;
+}
+
+.selected-variant-summary {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
 }
 
 .part-selected-variant.grouped small {
@@ -2379,6 +2481,13 @@ p {
   font-weight: 850;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.part-selected-variant em {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-style: normal;
+  line-height: 1.4;
 }
 
 .part-included-box {
@@ -2801,6 +2910,139 @@ p {
 .admin-product-stock {
   display: grid;
   gap: 1rem;
+}
+
+.admin-store-products {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-store-count {
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.admin-store-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) repeat(4, minmax(135px, 0.7fr));
+  gap: 0.65rem;
+}
+
+.admin-store-product-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.admin-store-product-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) minmax(240px, 0.8fr) minmax(150px, auto);
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: rgba(15, 18, 24, 0.72);
+}
+
+.admin-store-thumb {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 52px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  background: rgba(42, 49, 64, 0.34);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.admin-store-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-store-product-main {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.admin-store-product-main strong,
+.admin-store-product-main span {
+  display: block;
+}
+
+.admin-store-product-main strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-store-product-main span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.admin-store-product-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.admin-store-product-meta span,
+.status-pill {
+  padding: 0.22rem 0.45rem;
+  border: 1px solid rgba(148, 163, 184, 0.17);
+  border-radius: 999px;
+  background: rgba(42, 49, 64, 0.28);
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.status-pill.active {
+  border-color: rgba(34, 197, 94, 0.28);
+  color: #86efac;
+}
+
+.status-pill.inactive {
+  border-color: rgba(248, 113, 113, 0.24);
+  color: #fecaca;
+}
+
+.admin-store-pack-field {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem 0.55rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.admin-store-pack-field legend {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.admin-store-pack-field label {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.admin-store-actions {
+  display: grid;
+  gap: 0.45rem;
 }
 
 .admin-pack-manager {
@@ -3253,8 +3495,14 @@ p {
 
   .admin-pack-filters,
   .admin-pack-product-row,
-  .admin-pack-assignment-row {
+  .admin-pack-assignment-row,
+  .admin-store-filters,
+  .admin-store-product-row {
     grid-template-columns: 1fr;
+  }
+
+  .admin-store-pack-field {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .admin-pack-reorder {
@@ -3312,7 +3560,13 @@ p {
     flex-direction: column;
   }
 
-  .pack-selection-actions {
+  .pack-purchase-choice {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .pack-selection-actions,
+  .pack-purchase-actions {
     justify-content: flex-start;
   }
 
@@ -3437,6 +3691,15 @@ p {
 }
 
 @media (max-width: 900px) {
+  .part-selected-variant.with-media,
+  .selected-variant-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .part-selected-variant.with-media img {
+    max-width: 11rem;
+  }
+
   .submit-build-layout {
     grid-template-columns: 1fr;
   }

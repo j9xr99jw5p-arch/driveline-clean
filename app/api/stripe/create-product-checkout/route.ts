@@ -5,9 +5,12 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
 
 const schema = z.object({
-  variantId: z.string().uuid(),
+  variantId: z.string().uuid().optional(),
+  productId: z.string().uuid().optional(),
   quantity: z.number().int().min(1).max(20).optional(),
   buildId: z.string().uuid().optional()
+}).refine((payload) => Boolean(payload.variantId) !== Boolean(payload.productId), {
+  message: "Choose exactly one product or product option."
 });
 
 const friendlyCheckoutError =
@@ -27,6 +30,14 @@ type CheckoutVariant = {
   inventory_status: string | null;
 };
 
+type CheckoutProduct = {
+  id: string;
+  name: string;
+  active: boolean;
+  stripe_price_id: string | null;
+  inventory_status?: string | null;
+};
+
 function devLog(message: string, details?: unknown) {
   if (process.env.NODE_ENV !== "production") console.log(message, details ?? "");
 }
@@ -37,60 +48,113 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Please choose a valid product." }, { status: 400 });
   }
 
-  const { variantId, buildId } = parsed.data;
+  const { variantId, productId, buildId } = parsed.data;
   const quantity = parsed.data.quantity ?? 1;
 
-  devLog("Product checkout variantId:", variantId);
+  devLog("Product checkout request:", { variantId, productId });
 
   const supabase = createSupabaseAdminClient();
-  const variantResult = await supabase
-    .from("product_variants")
-    .select("id, product_id, variant_name, light_pattern, lens_color, harness_included, dielectric_grease_included, protective_film_included, stripe_price_id, active, inventory_status")
-    .eq("id", variantId)
-    .eq("active", true)
-    .maybeSingle();
-  let variant = variantResult.data as CheckoutVariant | null;
-  let error = variantResult.error;
+  let variant: CheckoutVariant | null = null;
+  let product: CheckoutProduct | null = null;
+  let stripePriceId: string | null = null;
 
-  if (error?.code === "42703" || error?.code === "PGRST204") {
-    const fallbackVariantResult = await supabase
+  if (variantId) {
+    const variantResult = await supabase
       .from("product_variants")
-      .select("id, product_id, variant_name, light_pattern, lens_color, harness_included, stripe_price_id, active, inventory_status")
+      .select("id, product_id, variant_name, light_pattern, lens_color, harness_included, dielectric_grease_included, protective_film_included, stripe_price_id, active, inventory_status")
       .eq("id", variantId)
       .eq("active", true)
       .maybeSingle();
+    variant = variantResult.data as CheckoutVariant | null;
+    let error = variantResult.error;
 
-    variant = fallbackVariantResult.data as CheckoutVariant | null;
-    error = fallbackVariantResult.error;
-  }
+    if (error?.code === "42703" || error?.code === "PGRST204") {
+      const fallbackVariantResult = await supabase
+        .from("product_variants")
+        .select("id, product_id, variant_name, light_pattern, lens_color, harness_included, stripe_price_id, active, inventory_status")
+        .eq("id", variantId)
+        .eq("active", true)
+        .maybeSingle();
 
-  if (error) {
-    console.error("Product checkout variant lookup failed", error);
-    return NextResponse.json({ error: friendlyCheckoutError }, { status: 500 });
-  }
+      variant = fallbackVariantResult.data as CheckoutVariant | null;
+      error = fallbackVariantResult.error;
+    }
 
-  if (!variant?.stripe_price_id) {
-    return NextResponse.json({ error: "This product option is not available for checkout." }, { status: 404 });
-  }
+    if (error) {
+      console.error("Product checkout variant lookup failed", error);
+      return NextResponse.json({ error: friendlyCheckoutError }, { status: 500 });
+    }
 
-  if (variant.inventory_status === "out_of_stock" || variant.inventory_status === "inactive") {
-    return NextResponse.json({ error: "This product option is currently out of stock." }, { status: 409 });
-  }
+    if (!variant?.stripe_price_id) {
+      return NextResponse.json({ error: "This product option is not available for checkout." }, { status: 404 });
+    }
 
-  const { data: product, error: productError } = await supabase
-    .from("products")
-    .select("id, name, active")
-    .eq("id", variant.product_id)
-    .eq("active", true)
-    .maybeSingle();
+    if (variant.inventory_status === "out_of_stock" || variant.inventory_status === "inactive") {
+      return NextResponse.json({ error: "This product option is currently out of stock." }, { status: 409 });
+    }
 
-  if (productError) {
-    console.error("Product checkout parent product lookup failed", productError);
-    return NextResponse.json({ error: friendlyCheckoutError }, { status: 500 });
+    const productResult = await supabase
+      .from("products")
+      .select("id, name, active, stripe_price_id, inventory_status")
+      .eq("id", variant.product_id)
+      .eq("active", true)
+      .maybeSingle();
+    product = productResult.data as CheckoutProduct | null;
+    const productError = productResult.error;
+
+    if (productError) {
+      console.error("Product checkout parent product lookup failed", productError);
+      return NextResponse.json({ error: friendlyCheckoutError }, { status: 500 });
+    }
+
+    stripePriceId = variant.stripe_price_id;
+  } else if (productId) {
+    const productResult = await supabase
+      .from("products")
+      .select("id, name, active, stripe_price_id, inventory_status")
+      .eq("id", productId)
+      .eq("active", true)
+      .maybeSingle();
+    product = productResult.data as CheckoutProduct | null;
+    const productError = productResult.error;
+
+    if (productError) {
+      console.error("Product checkout product lookup failed", productError);
+      return NextResponse.json({ error: friendlyCheckoutError }, { status: 500 });
+    }
+
+    if (product) {
+      const { data: activeVariants, error: activeVariantError } = await supabase
+        .from("product_variants")
+        .select("id")
+        .eq("product_id", product.id)
+        .eq("active", true)
+        .neq("inventory_status", "inactive")
+        .limit(1);
+
+      if (activeVariantError) {
+        console.error("Product checkout active variant lookup failed", activeVariantError);
+        return NextResponse.json({ error: friendlyCheckoutError }, { status: 500 });
+      }
+
+      if (activeVariants?.length) {
+        return NextResponse.json({ error: "Please choose a product option before checkout." }, { status: 400 });
+      }
+    }
+
+    stripePriceId = product?.stripe_price_id ?? null;
   }
 
   if (!product) {
     return NextResponse.json({ error: "This product is not available for checkout." }, { status: 404 });
+  }
+
+  if (product.inventory_status === "out_of_stock" || product.inventory_status === "inactive") {
+    return NextResponse.json({ error: "This product is currently out of stock." }, { status: 409 });
+  }
+
+  if (!stripePriceId) {
+    return NextResponse.json({ error: "This product is missing Stripe pricing." }, { status: 409 });
   }
 
   if (buildId) {
@@ -112,19 +176,19 @@ export async function POST(request: Request) {
     }
   }
 
-  devLog("Resolved variant stripe_price_id:", variant.stripe_price_id);
+  devLog("Resolved product checkout stripe_price_id:", stripePriceId);
 
   try {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
     const stripe = getStripe();
-    const greaseAddOnCents = getVariantAddOnPriceCents({
+    const greaseAddOnCents = variant ? getVariantAddOnPriceCents({
       dielectricGreaseIncluded: variant.dielectric_grease_included ?? null
-    });
+    }) : 0;
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       line_items: [
         {
-          price: variant.stripe_price_id,
+          price: stripePriceId,
           quantity
         },
         ...(greaseAddOnCents ? [{
@@ -135,7 +199,7 @@ export async function POST(request: Request) {
               name: "Dielectric grease add-on",
               metadata: {
                 product_id: product.id,
-                variant_id: variant.id
+                variant_id: variant?.id ?? ""
               }
             }
           },
@@ -149,14 +213,14 @@ export async function POST(request: Request) {
       },
       metadata: {
         product_id: product.id,
-        variant_id: variant.id,
+        variant_id: variant?.id ?? "",
         build_id: buildId ?? "",
-        light_pattern: variant.light_pattern ?? "",
-        lens_color: variant.lens_color ?? "",
-        harness_included: variant.harness_included ? "true" : "false",
-        dielectric_grease_included: "dielectric_grease_included" in variant && variant.dielectric_grease_included !== null ? variant.dielectric_grease_included ? "true" : "false" : "",
-        protective_film_included: "protective_film_included" in variant && variant.protective_film_included !== null ? variant.protective_film_included ? "true" : "false" : "",
-        source: buildId ? "build_product_variant" : "parts_product_variant"
+        light_pattern: variant?.light_pattern ?? "",
+        lens_color: variant?.lens_color ?? "",
+        harness_included: variant?.harness_included ? "true" : "false",
+        dielectric_grease_included: variant && "dielectric_grease_included" in variant && variant.dielectric_grease_included !== null ? variant.dielectric_grease_included ? "true" : "false" : "",
+        protective_film_included: variant && "protective_film_included" in variant && variant.protective_film_included !== null ? variant.protective_film_included ? "true" : "false" : "",
+        source: buildId ? "build_product_variant" : variant ? "parts_product_variant" : "parts_product"
       }
     });
 

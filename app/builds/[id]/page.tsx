@@ -34,6 +34,7 @@ type BuildProduct = {
     image_url: string | null;
     order_url: string | null;
     stripe_price_id: string | null;
+    active?: boolean | null;
     product_variants?: BuildProductVariant[] | null;
 };
 
@@ -97,6 +98,7 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
         image_url,
         order_url,
         stripe_price_id,
+        active,
         product_variants (
           id,
           variant_name,
@@ -140,6 +142,7 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
           description,
           image_url,
           stripe_price_id,
+          active,
           product_variants (
           id,
           variant_name,
@@ -171,6 +174,7 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
             description,
             image_url,
             stripe_price_id,
+            active,
             product_variants (
               id,
               variant_name,
@@ -242,6 +246,7 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
         category: product.category,
         description: product.description,
         imageUrl: product.image_url,
+        active: product.active !== false,
         linkedVariantLabel: linkedVariant ? linkedVariant.variantName : null,
         linkNotes: link.notes,
         variants

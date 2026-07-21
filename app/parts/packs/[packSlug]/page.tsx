@@ -6,6 +6,13 @@ import { PackCheckoutSelector } from "./PackCheckoutSelector";
 export const dynamic = "force-dynamic";
 export const dynamicParams = true;
 
+const packGreetingBySlug: Record<string, string> = {
+  appearance: "Get everything you need to upgrade your truck’s style with the Appearance Pack.",
+  lighting: "Light up the trail and improve nighttime visibility with the Lighting Pack.",
+  recovery: "Be ready when the trail gets difficult with the essential gear in the Recovery Pack.",
+  storage: "Keep your gear secure, organized, and easy to reach with the Storage Pack."
+};
+
 export default async function PartPackPage({ params }: { params: Promise<{ packSlug: string }> }) {
   const { packSlug } = await params;
   const packResult = await getActivePackBySlug(packSlug);
@@ -29,6 +36,7 @@ export default async function PartPackPage({ params }: { params: Promise<{ packS
           <div>
             <p className="eyebrow">Starter Pack</p>
             <h1>{pack.name}</h1>
+            {packGreetingBySlug[pack.slug] ? <p className="pack-greeting">{packGreetingBySlug[pack.slug]}</p> : null}
             <p className="lead">{pack.description}</p>
             <p className="muted">{packProducts.length} {packProducts.length === 1 ? "product" : "products"} available</p>
           </div>

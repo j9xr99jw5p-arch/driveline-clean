@@ -13,6 +13,7 @@ export type BuildProductCardData = {
   category: string;
   description: string | null;
   imageUrl: string | null;
+  active: boolean;
   linkedVariantLabel: string | null;
   linkNotes: string | null;
   variants: BuildProductVariantData[];
@@ -161,11 +162,13 @@ function BuildProductCard({
               <VariantSelect label="Finish" options={finishes} value={finish} onChange={setFinish} />
             </div>
           ) : null}
-          <ProductCheckoutButton
-            buildId={buildId}
-            disabled={!selectedVariant || !selectedVariantInStock}
-            variantId={selectedVariant?.id ?? null}
-          />
+          {product.active ? (
+            <ProductCheckoutButton
+              buildId={buildId}
+              disabled={!selectedVariant || !selectedVariantInStock}
+              variantId={selectedVariant?.id ?? null}
+            />
+          ) : <p className="fine">This product is currently unavailable.</p>}
           <Link className="button full" href={`/parts/${product.slug}`}>View part details</Link>
           {!selectedVariant ? <p className="fine">That option combination is not available.</p> : null}
           {selectedVariant && !selectedVariantInStock ? <p className="fine">This option is currently out of stock.</p> : null}

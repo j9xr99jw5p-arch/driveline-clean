@@ -29,11 +29,14 @@ type PackCheckoutSelectorProps = {
 
 export function PackCheckoutSelector({ packSlug, products }: PackCheckoutSelectorProps) {
   const initialState = useMemo(() => getInitialState(products), [products]);
+  const buyAllItems = useMemo(() => products.map(getBuyAllCheckoutItem).filter((item): item is CheckoutItem => Boolean(item)), [products]);
   const [selected, setSelected] = useState<Record<string, boolean>>(initialState.selected);
   const [quantities, setQuantities] = useState<Record<string, number>>(initialState.quantities);
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>(initialState.selectedVariants);
+  const [selectionOpen, setSelectionOpen] = useState(false);
   const [attemptedCheckout, setAttemptedCheckout] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [buyAllLoading, setBuyAllLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const selectedProducts = products.filter((product) => selected[product.id]);
@@ -43,9 +46,6 @@ export function PackCheckoutSelector({ packSlug, products }: PackCheckoutSelecto
     const price = getDisplayedPriceCents(product, selectedVariants[product.id]);
     return total + ((price ?? 0) * getQuantity(quantities, product.id));
   }, 0);
-  const missingVariantIds = selectedProducts
-    .filter((product) => product.variants.length > 0 && !selectedVariants[product.id])
-    .map((product) => product.id);
   const selectedAllAvailable = products
     .filter((product) => getAvailability(product).available)
     .every((product) => selected[product.id]);
@@ -74,19 +74,18 @@ export function PackCheckoutSelector({ packSlug, products }: PackCheckoutSelecto
     setError(null);
   }
 
-  async function checkout() {
-    setAttemptedCheckout(true);
-    if (!selectedCount) {
-      setError("Select at least one product to continue.");
+  async function startCheckout(items: CheckoutItem[], emptyMessage: string, setCheckoutLoading: (nextLoading: boolean) => void) {
+    if (!items.length) {
+      setError(emptyMessage);
       return;
     }
-    if (missingVariantIds.length) {
+    if (items.some((item) => item.needsVariant)) {
       setError("Choose an option for every selected part before checkout.");
       return;
     }
-    if (loading) return;
+    if (loading || buyAllLoading) return;
 
-    setLoading(true);
+    setCheckoutLoading(true);
     setError(null);
 
     try {
@@ -95,10 +94,10 @@ export function PackCheckoutSelector({ packSlug, products }: PackCheckoutSelecto
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           packSlug,
-          items: selectedProducts.map((product) => ({
-            productId: product.id,
-            variantId: selectedVariants[product.id] || undefined,
-            quantity: getQuantity(quantities, product.id)
+          items: items.map((item) => ({
+            productId: item.product.id,
+            variantId: item.variantId || undefined,
+            quantity: item.quantity
           }))
         })
       });
@@ -112,8 +111,24 @@ export function PackCheckoutSelector({ packSlug, products }: PackCheckoutSelecto
     } catch (requestError) {
       console.error("Pack checkout failed", requestError);
       setError(requestError instanceof Error ? requestError.message : checkoutErrorMessage);
-      setLoading(false);
+      setCheckoutLoading(false);
     }
+  }
+
+  async function checkoutSelected() {
+    setAttemptedCheckout(true);
+    const checkoutItems = selectedProducts.map((product) => ({
+      product,
+      variantId: selectedVariants[product.id] || null,
+      quantity: getQuantity(quantities, product.id),
+      needsVariant: product.variants.length > 0 && !selectedVariants[product.id]
+    }));
+
+    await startCheckout(checkoutItems, "Select at least one part to continue.", setLoading);
+  }
+
+  async function checkoutBuyAll() {
+    await startCheckout(buyAllItems, "No in-stock parts are available for Buy All.", setBuyAllLoading);
   }
 
   if (!products.length) {
@@ -127,6 +142,32 @@ export function PackCheckoutSelector({ packSlug, products }: PackCheckoutSelecto
 
   return (
     <div className="pack-checkout-layout">
+      <div className="pack-purchase-choice" aria-label="Pack purchase options">
+        <div>
+          <p className="eyebrow">Start here</p>
+          <h2>Choose how to shop this pack</h2>
+          <p className="muted">Buy all in-stock parts that do not need extra choices, or select the exact parts and options you want.</p>
+          {buyAllItems.length !== products.length ? <p className="fine">Some parts need an option choice or are out of stock, so they are excluded from Buy All.</p> : null}
+        </div>
+        <div className="pack-purchase-actions">
+          <button className="button primary" disabled={!buyAllItems.length || buyAllLoading || loading} onClick={checkoutBuyAll} type="button">
+            {buyAllLoading ? "Opening checkout..." : "Buy All"}
+          </button>
+          <button
+            className="button"
+            onClick={() => {
+              setSelectionOpen(true);
+              setError(null);
+            }}
+            type="button"
+          >
+            Select Individual Parts
+          </button>
+        </div>
+      </div>
+
+      {selectionOpen ? (
+        <>
       <div className="pack-selection-toolbar" aria-label="Pack selection controls">
         <div>
           <p className="eyebrow">Selected Parts</p>
@@ -191,10 +232,20 @@ export function PackCheckoutSelector({ packSlug, products }: PackCheckoutSelecto
                       value={selectedVariantId}
                     >
                       <option value="">Choose an option</option>
-                      {product.variants.map((variant) => (
-                        <option disabled={!isVariantPurchasable(variant)} key={variant.id} value={variant.id}>
-                          {getVariantLabel(variant)}
-                        </option>
+                      {getVariantOptionGroups(product.variants).map((group) => group.label ? (
+                        <optgroup key={group.label} label={group.label}>
+                          {group.variants.map((variant) => (
+                            <option disabled={!isVariantPurchasable(variant)} key={variant.id} value={variant.id}>
+                              {getVariantLabel(variant)}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : (
+                        group.variants.map((variant) => (
+                          <option disabled={!isVariantPurchasable(variant)} key={variant.id} value={variant.id}>
+                            {getVariantLabel(variant)}
+                          </option>
+                        ))
                       ))}
                     </select>
                   </label>
@@ -218,14 +269,23 @@ export function PackCheckoutSelector({ packSlug, products }: PackCheckoutSelecto
       <PackCheckoutSummary
         error={error}
         loading={loading}
-        onCheckout={checkout}
+        onCheckout={checkoutSelected}
         selectedCount={selectedCount}
         selectedTotal={selectedTotal}
         selectedUnitCount={selectedUnitCount}
       />
+        </>
+      ) : null}
     </div>
   );
 }
+
+type CheckoutItem = {
+  product: PackCheckoutProduct;
+  variantId: string | null;
+  quantity: number;
+  needsVariant: boolean;
+};
 
 function PackCheckoutSummary({
   error,
@@ -268,7 +328,6 @@ function PackCheckoutSummary({
 }
 
 function getInitialState(products: PackCheckoutProduct[]) {
-  const selected: Record<string, boolean> = {};
   const quantities: Record<string, number> = {};
   const selectedVariants: Record<string, string> = {};
 
@@ -278,18 +337,15 @@ function getInitialState(products: PackCheckoutProduct[]) {
     if (purchasableVariants.length === 1) {
       selectedVariants[product.id] = purchasableVariants[0].id;
     }
-    if (product.selectedByDefault && getAvailability(product).available) {
-      selected[product.id] = true;
-    }
   });
 
-  return { selected, quantities, selectedVariants };
+  return { selected: {}, quantities, selectedVariants };
 }
 
 function getAvailability(product: PackCheckoutProduct) {
   if (product.variants.length) {
     if (!product.variants.some(isVariantPurchasable)) {
-      return { available: false, reason: "No purchasable option is available." };
+      return { available: false, reason: "Out of stock." };
     }
     return { available: true, reason: null };
   }
@@ -299,6 +355,20 @@ function getAvailability(product: PackCheckoutProduct) {
   }
 
   return { available: true, reason: null };
+}
+
+function getBuyAllCheckoutItem(product: PackCheckoutProduct): CheckoutItem | null {
+  if (!getAvailability(product).available) return null;
+
+  const purchasableVariants = product.variants.filter(isVariantPurchasable);
+  if (purchasableVariants.length > 1) return null;
+
+  return {
+    product,
+    variantId: purchasableVariants[0]?.id ?? null,
+    quantity: product.packQuantity,
+    needsVariant: false
+  };
 }
 
 function isVariantPurchasable(variant: ProductVariantOption) {
@@ -321,8 +391,9 @@ function getDisplayedPriceLabel(product: PackCheckoutProduct, variantId: string 
 }
 
 function getVariantLabel(variant: ProductVariantOption) {
+  const prefixedName = parsePrefixedVariantName(variant.variantName);
   const details = [
-    variant.variantName,
+    prefixedName?.label ?? variant.variantName,
     variant.lightPattern,
     variant.lensColor,
     variant.size,
@@ -330,6 +401,39 @@ function getVariantLabel(variant: ProductVariantOption) {
     variant.priceLabel
   ].filter(Boolean);
   return details.join(" / ");
+}
+
+function getVariantOptionGroups(variants: ProductVariantOption[]) {
+  const prefixedGroups = variants.reduce<Array<{ label: string; variants: ProductVariantOption[] }>>((groups, variant) => {
+    const parsed = parsePrefixedVariantName(variant.variantName);
+    if (!parsed) return groups;
+
+    const existingGroup = groups.find((group) => group.label === parsed.group);
+    if (existingGroup) {
+      existingGroup.variants.push(variant);
+      return groups;
+    }
+
+    groups.push({ label: parsed.group, variants: [variant] });
+    return groups;
+  }, []);
+
+  const prefixedVariantCount = prefixedGroups.reduce((count, group) => count + group.variants.length, 0);
+  if (prefixedVariantCount === variants.length && prefixedGroups.length > 1) {
+    return prefixedGroups;
+  }
+
+  return [{ label: "", variants }];
+}
+
+function parsePrefixedVariantName(variantName: string) {
+  const match = variantName.match(/^(OE|Universal)\s+[—-]\s+(.+)$/i);
+  if (!match) return null;
+
+  return {
+    group: match[1].toLowerCase() === "oe" ? "OE Colors" : "Universal Colors",
+    label: match[2].trim()
+  };
 }
 
 function getQuantity(quantities: Record<string, number>, productId: string, fallback = 1) {

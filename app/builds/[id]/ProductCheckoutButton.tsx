@@ -7,11 +7,13 @@ const friendlyCheckoutError =
 
 export function ProductCheckoutButton({
   variantId,
+  productId,
   buildId,
   label = "Shop these parts",
   disabled
 }: {
-  variantId: string | null;
+  variantId?: string | null;
+  productId?: string | null;
   buildId?: string;
   label?: string;
   disabled?: boolean;
@@ -24,7 +26,7 @@ export function ProductCheckoutButton({
     setError(null);
 
     try {
-      if (!variantId) {
+      if (!variantId && !productId) {
         setError("Please choose an available option first.");
         return;
       }
@@ -32,7 +34,7 @@ export function ProductCheckoutButton({
       const response = await fetch("/api/stripe/create-product-checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ variantId, ...(buildId ? { buildId } : {}), quantity: 1 })
+        body: JSON.stringify({ ...(variantId ? { variantId } : { productId }), ...(buildId ? { buildId } : {}), quantity: 1 })
       });
       const payload = await response.json().catch((readError) => {
         console.error("Product checkout response could not be read", readError);
@@ -60,7 +62,7 @@ export function ProductCheckoutButton({
 
   return (
     <div className="product-checkout-control">
-      <button className="button primary full" type="button" onClick={startCheckout} disabled={loading || disabled || !variantId}>
+      <button className="button primary full" type="button" onClick={startCheckout} disabled={loading || disabled || (!variantId && !productId)}>
         {loading ? "Opening checkout..." : label}
       </button>
       {error ? <p className="fine">{error}</p> : null}

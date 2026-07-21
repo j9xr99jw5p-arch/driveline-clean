@@ -22,6 +22,7 @@ import {
 } from "@/lib/buildDisplay";
 import { buildSummaryPrompt, createLocalBuildSummary } from "@/lib/buildSummary";
 import {
+  formatCents,
   getReviewSentimentLabel,
   normalizeReviewRatingBreakdown,
   normalizeReviewStringList,
@@ -79,6 +80,34 @@ type ProductStockRow = {
     price_cents: number | null;
     active: boolean;
   }> | null;
+};
+
+export type AdminStorePackOption = {
+  id: string;
+  slug: string;
+  name: string;
+};
+
+export type AdminStoreProductRow = {
+  id: string;
+  slug: string | null;
+  name: string;
+  brand: string | null;
+  category: string;
+  active: boolean;
+  inventoryStatus: string | null;
+  priceLabel: string;
+  activeVariantCount: number;
+  imageUrl: string | null;
+  updatedAt: string | null;
+  packSlugs: string[];
+};
+
+export type AdminStoreProductManagementData = {
+  products: AdminStoreProductRow[];
+  packs: AdminStorePackOption[];
+  categories: string[];
+  inventoryStatuses: string[];
 };
 
 export type AdminAccessState = {
@@ -214,6 +243,105 @@ export async function loadPackManagementData(admin: ReturnType<typeof createSupa
       })),
     products,
     categories
+  };
+}
+
+export async function loadStoreProductManagementData(admin: ReturnType<typeof createSupabaseAdminClient>): Promise<AdminStoreProductManagementData> {
+  const [productsResult, packsResult] = await Promise.all([
+    admin
+      .from("products")
+      .select(`
+        id,
+        slug,
+        name,
+        brand,
+        category,
+        active,
+        inventory_status,
+        price_cents,
+        updated_at,
+        image_url,
+        product_images(url, sort_order),
+        product_variants(id, active, inventory_status, price_cents),
+        pack_products(packs(id, slug, name))
+      `)
+      .order("name", { ascending: true }),
+    admin
+      .from("packs")
+      .select("id, slug, name, active, sort_order")
+      .eq("active", true)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true })
+  ]);
+
+  if (productsResult.error) {
+    console.error("Failed to load store product management products:", productsResult.error);
+  }
+
+  if (packsResult.error) {
+    console.error("Failed to load store product management packs:", packsResult.error);
+  }
+
+  type StoreProductRow = {
+    id: string;
+    slug: string | null;
+    name: string;
+    brand: string | null;
+    category: string | null;
+    active: boolean | null;
+    inventory_status: string | null;
+    price_cents: number | null;
+    updated_at: string | null;
+    image_url: string | null;
+    product_images?: Array<{ url: string | null; sort_order: number | null }> | null;
+    product_variants?: Array<{ active: boolean | null; inventory_status: string | null; price_cents: number | null }> | null;
+    pack_products?: Array<{ packs: AdminStorePackOption | AdminStorePackOption[] | null }> | null;
+  };
+
+  type PackRow = AdminStorePackOption & {
+    active: boolean | null;
+    sort_order: number | null;
+  };
+
+  const products = ((productsResult.data ?? []) as StoreProductRow[]).map((product) => {
+    const variants = product.product_variants ?? [];
+    const activeVariants = variants.filter((variant) => variant.active && variant.inventory_status !== "inactive");
+    const variantPrices = activeVariants
+      .map((variant) => variant.price_cents)
+      .filter((price): price is number => typeof price === "number" && Number.isFinite(price));
+    const lowestPrice = product.price_cents ?? (variantPrices.length ? Math.min(...variantPrices) : null);
+    const packSlugs = Array.from(new Set((product.pack_products ?? [])
+      .map((assignment) => Array.isArray(assignment.packs) ? assignment.packs[0] : assignment.packs)
+      .map((pack) => pack?.slug)
+      .filter((slug): slug is string => Boolean(slug))));
+
+    return {
+      id: product.id,
+      slug: product.slug,
+      name: product.name,
+      brand: product.brand,
+      category: product.category?.trim() || "Uncategorized",
+      active: Boolean(product.active),
+      inventoryStatus: product.inventory_status ?? null,
+      priceLabel: formatCents(lowestPrice) ?? "Unavailable",
+      activeVariantCount: activeVariants.length,
+      imageUrl: getAdminProductImageUrl(product),
+      updatedAt: product.updated_at ?? null,
+      packSlugs
+    };
+  });
+
+  const packs = ((packsResult.data ?? []) as PackRow[]).map((pack) => ({
+    id: pack.id,
+    slug: pack.slug,
+    name: pack.name
+  }));
+
+  return {
+    products,
+    packs,
+    categories: Array.from(new Set(products.map((product) => product.category))).sort((a, b) => a.localeCompare(b)),
+    inventoryStatuses: Array.from(new Set(products.map((product) => product.inventoryStatus ?? "unknown"))).sort((a, b) => a.localeCompare(b))
   };
 }
 
@@ -371,6 +499,16 @@ export async function loadVisitAnalytics(admin: ReturnType<typeof createSupabase
     topPages,
     recent: visits.slice(0, 8)
   };
+}
+
+function getAdminProductImageUrl(product: { image_url: string | null; product_images?: Array<{ url: string | null; sort_order: number | null }> | null }) {
+  const firstProductImage = (product.product_images ?? [])
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map((image) => image.url?.trim())
+    .find(Boolean);
+
+  return firstProductImage ?? product.image_url?.trim() ?? null;
 }
 
 export async function loadProductStock(admin: ReturnType<typeof createSupabaseAdminClient>): Promise<ProductStockRow[]> {
