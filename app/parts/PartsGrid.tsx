@@ -1,24 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useMemo, useState } from "react";
 import type { PackSummary } from "@/lib/packs";
 import { getProductReviewSummary, getReviewPreviewText, normalizeProductCategory, type ProductSummary } from "@/lib/products";
 
 export function PartsGrid({ products, categories, packs }: { products: ProductSummary[]; categories: string[]; packs: PackSummary[] }) {
   const [category, setCategory] = useState("all");
-  const starterScrollRef = useRef<HTMLElement | null>(null);
-  const starterCardRefs = useRef<Array<HTMLElement | null>>([]);
   const filteredProducts = useMemo(() => {
     if (category === "all") return products;
     return products.filter((product) => normalizeProductCategory(product.category) === normalizeProductCategory(category));
   }, [category, products]);
 
-  useStarterPackScrollAnimation(starterScrollRef, starterCardRefs);
-
   return (
     <div className="parts-page-layout">
-      <aside className="parts-helper-sidebar" aria-label="Parts help and starter packs" ref={starterScrollRef}>
+      <aside className="parts-helper-sidebar" aria-label="Parts help and starter packs">
         <div>
           <p className="eyebrow">Parts Help</p>
           <h2>Not sure what to buy?</h2>
@@ -33,14 +29,8 @@ export function PartsGrid({ products, categories, packs }: { products: ProductSu
         <div className="parts-pack-nav">
           <p className="eyebrow">Starter packs</p>
           <div className="parts-pack-buttons">
-            {packs.map((pack, index) => (
-              <article
-                className="parts-pack-card"
-                key={pack.slug}
-                ref={(node) => {
-                  starterCardRefs.current[index] = node;
-                }}
-              >
+            {packs.map((pack) => (
+              <article className="parts-pack-card" key={pack.slug}>
                 <div>
                   <h3>{pack.name}</h3>
                   <p className="muted">{pack.description}</p>
@@ -93,62 +83,6 @@ export function PartsGrid({ products, categories, packs }: { products: ProductSu
       </main>
     </div>
   );
-}
-
-function useStarterPackScrollAnimation(
-  scrollRef: RefObject<HTMLElement | null>,
-  cardRefs: RefObject<Array<HTMLElement | null>>
-) {
-  useEffect(() => {
-    const scrollContainer = scrollRef.current;
-    if (!scrollContainer) return;
-
-    const desktopQuery = window.matchMedia("(min-width: 1025px) and (pointer: fine)");
-
-    const setMobileState = () => {
-      cardRefs.current.forEach((card) => {
-        if (!card) return;
-        card.style.opacity = "";
-        card.style.transform = "";
-      });
-    };
-
-    const updateCards = () => {
-      if (!desktopQuery.matches) {
-        setMobileState();
-        return;
-      }
-
-      const containerHeight = scrollContainer.clientHeight;
-      cardRefs.current.forEach((card) => {
-        if (!card) return;
-        const cardTop = card.offsetTop - scrollContainer.scrollTop;
-        const distance = containerHeight + card.offsetHeight;
-        const progress = Math.min(Math.max((containerHeight - cardTop) / distance, 0), 1);
-        const easedProgress = 1 - Math.pow(1 - progress, 2);
-        const yOffset = Math.round((1 - easedProgress) * 18);
-
-        card.style.opacity = String(0.48 + easedProgress * 0.52);
-        card.style.transform = `translateY(${yOffset}px)`;
-      });
-    };
-
-    updateCards();
-    scrollContainer.addEventListener("scroll", updateCards, { passive: true });
-    desktopQuery.addEventListener("change", updateCards);
-
-    const resizeObserver = new ResizeObserver(updateCards);
-    resizeObserver.observe(scrollContainer);
-    cardRefs.current.forEach((card) => {
-      if (card) resizeObserver.observe(card);
-    });
-
-    return () => {
-      scrollContainer.removeEventListener("scroll", updateCards);
-      desktopQuery.removeEventListener("change", updateCards);
-      resizeObserver.disconnect();
-    };
-  }, [scrollRef, cardRefs]);
 }
 
 export function PartCatalogCard({ product }: { product: ProductSummary }) {

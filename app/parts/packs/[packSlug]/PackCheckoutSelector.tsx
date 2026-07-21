@@ -30,6 +30,7 @@ type PackCheckoutSelectorProps = {
 export function PackCheckoutSelector({ packSlug, products }: PackCheckoutSelectorProps) {
   const initialState = useMemo(() => getInitialState(products), [products]);
   const buyAllItems = useMemo(() => products.map(getBuyAllCheckoutItem).filter((item): item is CheckoutItem => Boolean(item)), [products]);
+  const isAdvancedPack = packSlug === "advanced";
   const [selected, setSelected] = useState<Record<string, boolean>>(initialState.selected);
   const [quantities, setQuantities] = useState<Record<string, number>>(initialState.quantities);
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>(initialState.selectedVariants);
@@ -219,6 +220,7 @@ export function PackCheckoutSelector({ packSlug, products }: PackCheckoutSelecto
                   <strong>{priceLabel}</strong>
                   <span>{product.variants.length ? "Option required" : "Ready for checkout"}</span>
                 </div>
+                {isAdvancedPack ? <p className="advanced-product-label">Advanced installation</p> : null}
                 {!availability.available ? <p className="form-error">{availability.reason}</p> : null}
                 {product.variants.length ? (
                   <label className="field pack-variant-field">

@@ -8,10 +8,14 @@ export const dynamicParams = true;
 
 const packGreetingBySlug: Record<string, string> = {
   appearance: "Get everything you need to upgrade your truck’s style with the Appearance Pack.",
+  advanced: "Advanced Tacoma upgrades for experienced builders.",
   lighting: "Light up the trail and improve nighttime visibility with the Lighting Pack.",
   recovery: "Be ready when the trail gets difficult with the essential gear in the Recovery Pack.",
   storage: "Keep your gear secure, organized, and easy to reach with the Storage Pack."
 };
+
+const advancedPackWarning =
+  "Advanced installation required: These products may require custom mounting, wiring, trimming, fabrication, or other significant modifications. They are not beginner-friendly bolt-on upgrades.";
 
 export default async function PartPackPage({ params }: { params: Promise<{ packSlug: string }> }) {
   const { packSlug } = await params;
@@ -37,6 +41,7 @@ export default async function PartPackPage({ params }: { params: Promise<{ packS
             <p className="eyebrow">Starter Pack</p>
             <h1>{pack.name}</h1>
             {packGreetingBySlug[pack.slug] ? <p className="pack-greeting">{packGreetingBySlug[pack.slug]}</p> : null}
+            {pack.slug === "advanced" ? <p className="advanced-pack-warning">{advancedPackWarning}</p> : null}
             <p className="lead">{pack.description}</p>
             <p className="muted">{packProducts.length} {packProducts.length === 1 ? "product" : "products"} available</p>
           </div>

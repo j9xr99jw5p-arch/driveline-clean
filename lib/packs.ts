@@ -68,7 +68,18 @@ export async function getActivePackSummaries(): Promise<PackSummary[]> {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from("packs")
-    .select("id, slug, name, description, sort_order")
+    .select(`
+      id,
+      slug,
+      name,
+      description,
+      sort_order,
+      pack_products (
+        products (
+          active
+        )
+      )
+    `)
     .eq("active", true)
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true });
@@ -78,7 +89,9 @@ export async function getActivePackSummaries(): Promise<PackSummary[]> {
     return [];
   }
 
-  return ((data ?? []) as PackRow[]).map(mapPackSummary);
+  return ((data ?? []) as PackRow[])
+    .filter((row) => getActivePackProducts(row).length > 0)
+    .map(mapPackSummary);
 }
 
 export async function getActivePackBySlug(slug: string): Promise<PackLookupResult> {
@@ -144,9 +157,11 @@ export async function getActivePackBySlug(slug: string): Promise<PackLookupResul
   }
 
   const row = data as PackRow;
-  const productRows = (row.pack_products ?? [])
-    .map((item) => Array.isArray(item.products) ? item.products[0] : item.products)
-    .filter((product): product is ProductRow => Boolean(product?.active));
+  const productRows = getActivePackProducts(row);
+  if (!productRows.length) {
+    return { status: "not_found" };
+  }
+
   const stripePrices = await getStripePriceMap(getPackStripePriceIds(productRows));
 
   return {
@@ -156,7 +171,7 @@ export async function getActivePackBySlug(slug: string): Promise<PackLookupResul
       products: dedupePackProducts((row.pack_products ?? [])
         .map((item) => {
           const product = Array.isArray(item.products) ? item.products[0] : item.products;
-          if (!product?.active) return null;
+          if (!isActivePackProduct(product)) return null;
           return mapPackProduct(product, item, stripePrices);
         })
         .filter((product): product is PackProduct => Boolean(product)))
@@ -225,19 +240,31 @@ export async function getActivePacks(): Promise<ProductPack[]> {
   const productRows = rows
     .flatMap((pack) => pack.pack_products ?? [])
     .map((item) => Array.isArray(item.products) ? item.products[0] : item.products)
-    .filter((product): product is ProductRow => Boolean(product?.active));
+    .filter(isActivePackProduct);
   const stripePrices = await getStripePriceMap(getPackStripePriceIds(productRows));
 
-  return rows.map((row) => ({
-    ...mapPackSummary(row),
-    products: dedupePackProducts((row.pack_products ?? [])
-      .map((item) => {
-        const product = Array.isArray(item.products) ? item.products[0] : item.products;
-        if (!product?.active) return null;
-        return mapPackProduct(product, item, stripePrices);
-      })
-      .filter((product): product is PackProduct => Boolean(product)))
-  }));
+  return rows
+    .map((row) => ({
+      ...mapPackSummary(row),
+      products: dedupePackProducts((row.pack_products ?? [])
+        .map((item) => {
+          const product = Array.isArray(item.products) ? item.products[0] : item.products;
+          if (!isActivePackProduct(product)) return null;
+          return mapPackProduct(product, item, stripePrices);
+        })
+        .filter((product): product is PackProduct => Boolean(product)))
+    }))
+    .filter((pack) => pack.products.length > 0);
+}
+
+function getActivePackProducts(row: PackRow) {
+  return (row.pack_products ?? [])
+    .map((item) => Array.isArray(item.products) ? item.products[0] : item.products)
+    .filter(isActivePackProduct);
+}
+
+function isActivePackProduct(product: ProductRow | null | undefined): product is ProductRow {
+  return Boolean(product?.active);
 }
 
 function mapPackSummary(row: PackRow): PackSummary {
