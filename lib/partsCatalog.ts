@@ -166,15 +166,21 @@ export async function getPartsCatalog() {
 }
 
 function getProductImageUrls(product: ProductRow) {
-  const imageUrls = (product.product_images ?? [])
+  const imageUrls: string[] = [];
+
+  addProductImageUrl(imageUrls, product.image_url);
+
+  (product.product_images ?? [])
     .slice()
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-    .map((image) => image.url)
-    .filter(Boolean);
-
-  if (!imageUrls.length && product.image_url) {
-    imageUrls.push(product.image_url);
-  }
+    .forEach((image) => addProductImageUrl(imageUrls, image.url));
 
   return imageUrls;
+}
+
+function addProductImageUrl(imageUrls: string[], url: string | null | undefined) {
+  const trimmedUrl = url?.trim();
+  if (trimmedUrl && !imageUrls.includes(trimmedUrl)) {
+    imageUrls.push(trimmedUrl);
+  }
 }

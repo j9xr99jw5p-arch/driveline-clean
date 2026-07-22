@@ -423,17 +423,23 @@ function getProductCardImageUrl(product: ProductRow) {
 }
 
 function getProductImageUrls(product: ProductRow) {
-  const imageUrls = (product.product_images ?? [])
+  const imageUrls: string[] = [];
+
+  addProductImageUrl(imageUrls, product.image_url);
+
+  (product.product_images ?? [])
     .slice()
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-    .map((image) => image.url?.trim())
-    .filter((url): url is string => Boolean(url));
-
-  if (!imageUrls.length && product.image_url?.trim()) {
-    imageUrls.push(product.image_url.trim());
-  }
+    .forEach((image) => addProductImageUrl(imageUrls, image.url));
 
   return imageUrls;
+}
+
+function addProductImageUrl(imageUrls: string[], url: string | null | undefined) {
+  const trimmedUrl = url?.trim();
+  if (trimmedUrl && !imageUrls.includes(trimmedUrl)) {
+    imageUrls.push(trimmedUrl);
+  }
 }
 
 function getPackStripePriceIds(products: ProductRow[]) {
