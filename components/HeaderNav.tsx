@@ -7,7 +7,8 @@ import { useEffect, useRef, useState } from "react";
 const menuItems = [
   { href: "/", label: "Home" },
   { href: "/check", label: "Fitment Checker" },
-  { href: "/builds", label: "Verified Builds" }
+  { href: "/builds", label: "Verified Builds" },
+  { href: "/account", label: "Account" }
 ];
 
 export function HeaderNav() {
