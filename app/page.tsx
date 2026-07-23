@@ -51,7 +51,7 @@ export default async function HomePage() {
         <div className="section grid three">
           <div className="card feature-card"><ShieldCheck size={24} /><h3>Honest assessments</h3><p className="muted">See rubbing, trimming, clearance, and drivability warnings before money leaves your account.</p></div>
           <div className="card feature-card"><CheckCircle2 size={24} /><h3>Verified build data</h3><p className="muted">Browse real Tacoma setups with tire, wheel, lift, rubbing, and owner/source details.</p></div>
-          <div className="card feature-card"><ArrowRight size={24} /><h3>No clutter</h3><p className="muted">Focused on fitment checks, verified builds, submissions, pricing, and account essentials.</p></div>
+          <div className="card feature-card"><ArrowRight size={24} /><h3>No clutter</h3><p className="muted">Focused on fitment checks and verified builds so the main path stays simple.</p></div>
         </div>
       </section>
     </>

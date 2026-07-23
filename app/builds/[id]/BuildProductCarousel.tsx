@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { ExpandableText } from "@/components/ExpandableText";
-import { ProductCheckoutButton } from "./ProductCheckoutButton";
 
 export type BuildProductCardData = {
   id: string;
@@ -38,8 +36,7 @@ export type BuildProductVariantData = {
 };
 
 export function BuildProductCarousel({
-  products,
-  buildId
+  products
 }: {
   products: BuildProductCardData[];
   buildId: string;
@@ -50,7 +47,6 @@ export function BuildProductCarousel({
     <div className="build-products-carousel" aria-label="Parts on this build">
       {products.map((product) => (
         <BuildProductCard
-          buildId={buildId}
           isExpanded={expandedProductId === product.id}
           key={product.id}
           onToggle={() => {
@@ -65,12 +61,10 @@ export function BuildProductCarousel({
 
 function BuildProductCard({
   product,
-  buildId,
   isExpanded,
   onToggle
 }: {
   product: BuildProductCardData;
-  buildId: string;
   isExpanded: boolean;
   onToggle: () => void;
 }) {
@@ -162,14 +156,7 @@ function BuildProductCard({
               <VariantSelect label="Finish" options={finishes} value={finish} onChange={setFinish} />
             </div>
           ) : null}
-          {product.active ? (
-            <ProductCheckoutButton
-              buildId={buildId}
-              disabled={!selectedVariant || !selectedVariantInStock}
-              variantId={selectedVariant?.id ?? null}
-            />
-          ) : <p className="fine">This product is currently unavailable.</p>}
-          <Link className="button full" href={`/parts/${product.slug}`}>View part details</Link>
+          {!product.active ? <p className="fine">This product is currently unavailable.</p> : null}
           {!selectedVariant ? <p className="fine">That option combination is not available.</p> : null}
           {selectedVariant && !selectedVariantInStock ? <p className="fine">This option is currently out of stock.</p> : null}
         </div>

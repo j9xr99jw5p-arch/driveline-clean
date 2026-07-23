@@ -5,12 +5,9 @@ import { Menu, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 const menuItems = [
+  { href: "/", label: "Home" },
   { href: "/check", label: "Fitment Checker" },
-  { href: "/builds", label: "Verified Builds" },
-  { href: "/parts", label: "Parts" },
-  { href: "/pricing", label: "Pricing" },
-  { href: "/submit-build", label: "Submit Build" },
-  { href: "/account", label: "Account" }
+  { href: "/builds", label: "Verified Builds" }
 ];
 
 export function HeaderNav() {
