@@ -38,6 +38,8 @@ export default function ResultsPage() {
   const advice = normalizeAiExplanation(report.aiExplanation, report);
   const riskLabel = `${report.rubbingRisk.charAt(0).toUpperCase()}${report.rubbingRisk.slice(1)} rubbing risk`;
   const isPremium = report.accessTier === "premium";
+  const premiumInsights = report.premiumInsights;
+  const displayedWarnings = isPremium ? report.premiumWarnings ?? [] : report.warnings;
 
   return (
     <section className="band">
@@ -98,8 +100,12 @@ export default function ResultsPage() {
           </div>
 
           <div className="fitment-advice-copy">
-            <p className="fitment-headline">{advice.headline}</p>
-            <p>{advice.overviewAdvice}</p>
+            {isPremium ? (
+              <>
+                <p className="fitment-headline">{advice.headline}</p>
+                <p>{advice.overviewAdvice}</p>
+              </>
+            ) : null}
 
             {isPremium ? (
               <>
@@ -133,11 +139,44 @@ export default function ResultsPage() {
           <p className="fine fitment-disclaimer">{advice.disclaimer}</p>
         </div>
 
+        {isPremium && premiumInsights ? (
+          <div className="grid two" style={{ marginTop: 32 }}>
+            <div className="card">
+              <h2>Alternative Setup</h2>
+              <p className="muted">{premiumInsights.alternativeSetup?.summary ?? "No nearby offset or wheel-width change lowered the current risk level in the rules engine. Keep the current categorical risk in mind before buying parts."}</p>
+            </div>
+            <div className="card">
+              <h2>Verified Build Match</h2>
+              <p className="muted">{premiumInsights.verifiedBuildMatchStatus}</p>
+            </div>
+            <div className="card">
+              <h2>Scenario Breakdown</h2>
+              <div className="section-stack compact-stack">
+                {premiumInsights.scenarioBreakdown.map((scenario) => (
+                  <div className="scenario-row" key={scenario.scenario}>
+                    <div className="spec-row">
+                      <span className="muted">{scenario.scenario}</span>
+                      <strong>{scenario.risk}</strong>
+                    </div>
+                    <p className="fine">{scenario.detail}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="card">
+              <h2>Trim Detail</h2>
+              <p className="muted">{premiumInsights.trimDetail}</p>
+              <h3 style={{ marginTop: 18 }}>Fitment Notes Used</h3>
+              <p className="muted">{premiumInsights.notesReasoning}</p>
+            </div>
+          </div>
+        ) : null}
+
         <div className={isPremium ? "grid three" : "grid two"} style={{ marginTop: 32 }}>
           <div className="card">
-            <h2>Warnings</h2>
+            <h2>{isPremium ? "Premium Watchouts" : "Warnings"}</h2>
             <ul className="stack-list">
-              {(report.warnings.length ? report.warnings : ["No major warnings were found for this setup."]).map((warning) => <li key={warning}>{warning}</li>)}
+              {(displayedWarnings.length ? displayedWarnings : ["No major warnings were found for this setup."]).map((warning) => <li key={warning}>{warning}</li>)}
             </ul>
           </div>
           {isPremium ? (

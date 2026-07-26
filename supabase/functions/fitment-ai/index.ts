@@ -71,7 +71,8 @@ Deno.serve(async (request) => {
       dailyDrivability: deterministicReport.dailyDrivability,
       offRoadPracticality: deterministicReport.offRoadPracticality,
       warnings: deterministicReport.warnings,
-      recommendations: deterministicReport.recommendations
+      recommendations: deterministicReport.recommendations,
+      premiumInsights: deterministicReport.premiumInsights
     };
 
     let openAiResponse: Response;
@@ -154,12 +155,12 @@ function callResponsesApi(
         {
           role: "system",
           content:
-            "You are a Toyota Tacoma wheel, tire, and lift fitment advisor for Driveline. Write practical conversational advice. The deterministic fitment report is the source of truth. Do not contradict it. Return only valid JSON with the required keys."
+            "You are a Toyota Tacoma wheel, tire, and lift fitment advisor for Driveline. Write practical conversational advice. The deterministic fitment report is the source of truth. Do not contradict it. Do not restate the summary paragraph or warnings already shown to the user. Only add premium reasoning about alternatives, scenario behavior, trim location/severity, verified-build match status, and the user's fitment notes. Return only valid JSON with the required keys."
         },
         {
           role: "user",
           content: JSON.stringify({
-            task: "Create conversational paragraph-based fitment advice.",
+            task: "Create premium-only conversational fitment advice. Avoid repeating deterministic summary or warning sentences verbatim.",
             input,
             deterministicSourceOfTruth,
             deterministicReport

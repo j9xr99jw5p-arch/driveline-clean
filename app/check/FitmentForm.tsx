@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { assessFitment, normalizeFitmentInput } from "@/lib/fitment";
+import { assessFitment, buildPremiumFitmentInsights, buildPremiumWarnings, normalizeFitmentInput } from "@/lib/fitment";
 import { callFitmentAi, normalizeAiExplanation } from "@/lib/fitmentAi";
 import { loadTruckProfile, saveFitmentResult, saveTruckProfile } from "@/lib/reportRenderer";
 import type { FitmentInput, FitmentReport } from "@/lib/types";
@@ -68,7 +68,11 @@ export function FitmentForm({ entitlement }: { entitlement: FitmentFormEntitleme
       if (mode === "premium") {
         const aiResult = await callFitmentAi({
           input,
-          deterministicReport
+          deterministicReport: {
+            ...deterministicReport,
+            premiumWarnings: buildPremiumWarnings(input, deterministicReport),
+            premiumInsights: buildPremiumFitmentInsights(input, deterministicReport)
+          }
         });
 
         if (!aiResult.report) {

@@ -1,4 +1,4 @@
-import type { FitmentInput, FitmentReport, FitmentRisk } from "./types";
+import type { FitmentInput, FitmentReport, FitmentRisk, PremiumFitmentInsights } from "./types";
 
 export function normalizeFitmentInput(values: Record<string, FormDataEntryValue | string | number | undefined>): FitmentInput {
   return {
@@ -46,12 +46,21 @@ function parseTireDiameter(tireSize: string) {
   return Math.round(((width * aspect * 2) / 25.4 + wheel) * 10) / 10;
 }
 
+const riskRank: Record<FitmentRisk, number> = { low: 1, medium: 2, high: 3 };
+
 function maxRisk(...risks: FitmentRisk[]): FitmentRisk {
-  const rank = { low: 1, medium: 2, high: 3 };
-  return risks.reduce((best, risk) => (rank[risk] > rank[best] ? risk : best), "low");
+  return risks.reduce((best, risk) => (riskRank[risk] > riskRank[best] ? risk : best), "low");
 }
 
-export function assessFitment(input: FitmentInput): FitmentReport {
+function lowerRisk(a: FitmentRisk, b: FitmentRisk) {
+  return riskRank[a] < riskRank[b];
+}
+
+function riskLabel(risk: FitmentRisk) {
+  return risk.charAt(0).toUpperCase() + risk.slice(1);
+}
+
+function buildCoreFitmentReport(input: FitmentInput): FitmentReport {
   const width = parseTireWidth(input.tireSize);
   const diameter = parseTireDiameter(input.tireSize);
   const wide = width >= 285 || diameter >= 33;
@@ -99,4 +108,102 @@ export function assessFitment(input: FitmentInput): FitmentReport {
     warnings,
     recommendations
   };
+}
+
+export function assessFitment(input: FitmentInput): FitmentReport {
+  return buildCoreFitmentReport(input);
+}
+
+export function buildPremiumFitmentInsights(input: FitmentInput, report = buildCoreFitmentReport(input)): PremiumFitmentInsights {
+  return {
+    alternativeSetup: findLowerRiskAlternative(input, report),
+    scenarioBreakdown: buildScenarioBreakdown(input, report),
+    trimDetail: describeTrimNeeds(input, report),
+    verifiedBuildMatchStatus: "Verified-build match status is checked after the report is submitted.",
+    notesReasoning: describeNotesInfluence(input, report)
+  };
+}
+
+export function buildPremiumWarnings(input: FitmentInput, report: FitmentReport): string[] {
+  return [
+    report.trimmingLikely ? describeTrimNeeds(input, report) : null,
+    report.rubbingRisk === "high" ? "Prioritize the suggested lower-risk setup before buying wheels or tires; this entered setup leaves little margin for real-truck variance." : null,
+    input.useCase === "off-road" || /overland|trail|camp|off[- ]?road/i.test(input.buildGoals ?? "")
+      ? "Because trail or overland use was selected, compression and articulation clearance matter more than parking-lot clearance."
+      : null,
+    report.bodyMountChopLikely ? "Check cab-mount clearance with the exact tire mounted before assuming alignment alone will solve contact." : null
+  ].filter((warning): warning is string => Boolean(warning));
+}
+
+function findLowerRiskAlternative(input: FitmentInput, report: FitmentReport): PremiumFitmentInsights["alternativeSetup"] {
+  const offsetCandidates = Array.from(new Set([
+    input.wheelOffset + 6,
+    input.wheelOffset + 12,
+    input.wheelOffset < 0 ? 0 : input.wheelOffset - 6
+  ])).filter((offset) => offset >= -80 && offset <= 80);
+  const widthCandidates = Array.from(new Set([
+    input.wheelWidth,
+    input.wheelWidth > 7 ? input.wheelWidth - 0.5 : input.wheelWidth,
+    input.wheelWidth > 7.5 ? input.wheelWidth - 1 : input.wheelWidth
+  ])).filter((width) => width >= 6 && width <= 14);
+
+  const candidates = offsetCandidates.flatMap((wheelOffset) => widthCandidates.map((wheelWidth) => ({
+    wheelOffset,
+    wheelWidth,
+    report: buildCoreFitmentReport({ ...input, wheelOffset, wheelWidth })
+  })));
+  const improvingCandidates = candidates
+    .filter((candidate) => lowerRisk(candidate.report.rubbingRisk, report.rubbingRisk))
+    .sort((a, b) => riskRank[a.report.rubbingRisk] - riskRank[b.report.rubbingRisk]);
+  const best = improvingCandidates[0];
+  if (!best) return null;
+
+  const widthPhrase = best.wheelWidth === input.wheelWidth ? "same wheel width" : `${best.wheelWidth} in wheel width`;
+  return {
+    summary: `At ${best.wheelOffset}mm offset with ${widthPhrase}, rubbing risk drops from ${riskLabel(report.rubbingRisk)} to ${riskLabel(best.report.rubbingRisk)}.`,
+    currentRisk: report.rubbingRisk,
+    suggestedRisk: best.report.rubbingRisk,
+    wheelOffset: best.wheelOffset,
+    wheelWidth: best.wheelWidth
+  };
+}
+
+function buildScenarioBreakdown(input: FitmentInput, report: FitmentReport): PremiumFitmentInsights["scenarioBreakdown"] {
+  const trailWeighted = input.useCase === "off-road" || /overland|trail|rock|camp/i.test(input.buildGoals ?? "");
+  const onRoadRisk: FitmentRisk = report.rubbingRisk === "high" && input.liftHeight >= 2.5 ? "medium" : report.rubbingRisk;
+  const fullLockRisk = report.rubbingRisk;
+  const articulationRisk = maxRisk(report.rubbingRisk, trailWeighted || input.rearLoad !== "normal" ? "medium" : "low");
+
+  return [
+    { scenario: "On-road driving", risk: onRoadRisk, detail: `Derived from the aggregate rules engine. Expect ${onRoadRisk} risk in normal street driving when alignment and tire pressure are reasonable.` },
+    { scenario: "Full-lock turning", risk: fullLockRisk, detail: "Full-lock steering is the main place this setup should be checked because offset and tire width stack closest to the liner and mud-flap area." },
+    { scenario: "Off-road articulation", risk: articulationRisk, detail: trailWeighted ? "Your stated use case makes compression and articulation clearance a higher priority than street-only clearance." : "Articulation can still create contact even when street driving feels acceptable." }
+  ];
+}
+
+function describeTrimNeeds(input: FitmentInput, report: FitmentReport) {
+  if (!report.trimmingLikely) {
+    return "No major trimming is predicted, but full-lock liner and mud-flap clearance should still be verified on the truck.";
+  }
+
+  if (report.bodyMountChopLikely) {
+    return "Likely trim area: front inner liner, mud-flap pocket, pinch-weld area, and cab/body mount clearance. Severity: moderate to major depending on alignment and tire shape.";
+  }
+
+  if (input.liftHeight < 2.5) {
+    return "Likely trim area: front inner liner and mud-flap pocket. Severity: light to moderate, with extra attention at full lock and compression.";
+  }
+
+  return "Likely trim area: front liner and mud-flap area. Severity: light, but tire brand and caster can move this up or down.";
+}
+
+function describeNotesInfluence(input: FitmentInput, report: FitmentReport) {
+  const notes = input.buildGoals?.trim();
+  if (!notes) return "No fitment notes were entered, so the premium reasoning weights the selected use case and rear-load fields most heavily.";
+
+  const offRoadWeighted = /overland|trail|camp|off[- ]?road|rock|desert/i.test(notes);
+  const comfortWeighted = /daily|comfort|commute|quiet|road/i.test(notes);
+  if (offRoadWeighted) return `Your notes mention "${notes}", so articulation and loaded-travel clearance are weighted higher than street-only rubbing.`;
+  if (comfortWeighted) return `Your notes mention "${notes}", so daily drivability and low-noise full-lock clearance are weighted higher than maximum tire stance.`;
+  return `Your notes mention "${notes}", so the recommendation is framed around that goal instead of only the categorical ${report.rubbingRisk} rubbing-risk label.`;
 }

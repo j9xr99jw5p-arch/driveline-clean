@@ -4,6 +4,11 @@ import {
   validateFitmentCreditFulfillment
 } from "../lib/fitmentCreditSecurity.ts";
 import {
+  assessFitment,
+  buildPremiumFitmentInsights,
+  buildPremiumWarnings
+} from "../lib/fitment.ts";
+import {
   previewSelectIsSanitized,
   restrictedVerifiedBuildFields,
   sanitizeVerifiedBuildPreview
@@ -170,6 +175,32 @@ for (const field of restrictedVerifiedBuildFields) {
 assert.equal(canAccessBuildDetail({ premium: false, build: fullBuild }), "preview_only", "non-premium detail cannot access full data");
 assert.equal(canAccessBuildDetail({ premium: true, build: fullBuild }), "full_published", "premium user can access published full data");
 assert.equal(canAccessBuildDetail({ premium: true, build: { ...fullBuild, published: false } }), "not_found", "unpublished data remains protected");
+
+const highRiskInput = {
+  year: 2023,
+  trim: "TRD Off-Road",
+  cab: "Double Cab",
+  bed: "5 ft",
+  tireSize: "285/70R17",
+  wheelDiameter: 17,
+  wheelWidth: 9,
+  wheelOffset: -25,
+  liftHeight: 3,
+  useCase: "off-road",
+  rearLoad: "normal",
+  buildGoals: "overland capabilities"
+};
+const highRiskReport = assessFitment(highRiskInput);
+const premiumInsights = buildPremiumFitmentInsights(highRiskInput, highRiskReport);
+assert.ok(premiumInsights.alternativeSetup, "premium includes a lower-risk nearby setup when one exists");
+assert.ok(premiumInsights.alternativeSetup.summary.includes("drops from"), "alternative setup reports a quantified risk delta");
+assert.equal(premiumInsights.scenarioBreakdown.length, 3, "premium includes scenario-specific breakdown");
+assert.match(premiumInsights.trimDetail, /Likely trim area:/, "premium includes trim location and severity detail");
+assert.match(premiumInsights.notesReasoning, /overland capabilities/, "premium reasoning visibly uses fitment notes");
+const premiumWarnings = buildPremiumWarnings(highRiskInput, highRiskReport);
+for (const warning of premiumWarnings) {
+  assert.equal(highRiskReport.warnings.includes(warning), false, "premium warnings are not verbatim free warnings");
+}
 
 console.log("fitment credit security tests passed");
 

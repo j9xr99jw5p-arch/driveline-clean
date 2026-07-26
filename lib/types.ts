@@ -74,7 +74,23 @@ export type FitmentReport = {
   explanation: string;
   warnings: string[];
   recommendations: string[];
+  premiumWarnings?: string[];
+  premiumInsights?: PremiumFitmentInsights | null;
   aiExplanation?: FitmentAiReport | null;
+};
+
+export type PremiumFitmentInsights = {
+  alternativeSetup: {
+    summary: string;
+    currentRisk: FitmentRisk;
+    suggestedRisk: FitmentRisk;
+    wheelOffset: number;
+    wheelWidth: number;
+  } | null;
+  scenarioBreakdown: Array<{ scenario: string; risk: FitmentRisk; detail: string }>;
+  trimDetail: string;
+  verifiedBuildMatchStatus: string;
+  notesReasoning: string;
 };
 
 export type FitmentAiReport = {

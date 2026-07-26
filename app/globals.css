@@ -4000,3 +4000,17 @@ p {
     position: static;
   }
 }
+
+.scenario-row {
+  border-bottom: 1px solid var(--border-color);
+  padding: 0.35rem 0 0.85rem;
+}
+
+.scenario-row:last-child {
+  border-bottom: none;
+}
+
+.scenario-row .spec-row {
+  border-bottom: none;
+  padding-bottom: 0.25rem;
+}

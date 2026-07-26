@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { z } from "zod";
-import { assessFitment, normalizeFitmentInput } from "@/lib/fitment";
+import { assessFitment, buildPremiumFitmentInsights, buildPremiumWarnings, normalizeFitmentInput } from "@/lib/fitment";
 import { consumePremiumFitmentCredit, getFitmentEntitlementForUser } from "@/lib/fitmentEntitlements";
 import { saveGarageVehicleConfiguration } from "@/lib/garage";
 import { getCurrentSupabaseUser } from "@/lib/supabase/auth";
@@ -101,15 +101,23 @@ export async function POST(request: Request) {
   }
 
   let garageSyncError: string | null = null;
+  const admin = createSupabaseAdminClient();
+  const premiumInsights = buildPremiumFitmentInsights(input, deterministicReport);
+  premiumInsights.verifiedBuildMatchStatus = await getVerifiedBuildMatchStatus(admin, input);
+  const premiumReport = {
+    ...report,
+    premiumWarnings: buildPremiumWarnings(input, deterministicReport),
+    premiumInsights
+  };
 
   const { data: assessment, error } = await supabase.from("fitment_assessments").insert({
     user_id: userId,
     input,
-    report,
-    overall_verdict: report.verdict,
-    rubbing_risk: report.rubbingRisk,
-    trimming_likely: report.trimmingLikely,
-    body_mount_chop_likely: report.bodyMountChopLikely
+    report: premiumReport,
+    overall_verdict: premiumReport.verdict,
+    rubbing_risk: premiumReport.rubbingRisk,
+    trimming_likely: premiumReport.trimmingLikely,
+    body_mount_chop_likely: premiumReport.bodyMountChopLikely
   }).select("id").maybeSingle();
   if (error) return NextResponse.json({ error: "Could not save assessment." }, { status: 500 });
 
@@ -119,7 +127,6 @@ export async function POST(request: Request) {
     garageSyncError = "Assessment saved, but the garage vehicle could not be synced. Please try again shortly.";
   }
 
-  const admin = createSupabaseAdminClient();
   let updatedEntitlement = entitlement;
 
   if (entitlement.premiumChecksRemaining > 0) {
@@ -150,7 +157,7 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ report, garageSyncError, entitlement: updatedEntitlement });
+  return NextResponse.json({ report: premiumReport, garageSyncError, entitlement: updatedEntitlement });
 }
 
 async function getRequestIp() {
@@ -174,17 +181,55 @@ function isFreeCheckLimited(key: string) {
   return false;
 }
 
+async function getVerifiedBuildMatchStatus(supabase: ReturnType<typeof createSupabaseAdminClient>, input: ReturnType<typeof normalizeFitmentInput>) {
+  try {
+    const minOffset = input.wheelOffset - 12;
+    const maxOffset = input.wheelOffset + 12;
+    const minWidth = input.wheelWidth - 0.5;
+    const maxWidth = input.wheelWidth + 0.5;
+    const minLift = Math.max(0, input.liftHeight - 0.75);
+    const maxLift = input.liftHeight + 0.75;
+    const { count, error } = await supabase
+      .from("verified_builds")
+      .select("id", { count: "exact", head: true })
+      .eq("published", true)
+      .eq("year", input.year)
+      .eq("tire_size", input.tireSize)
+      .gte("wheel_offset", minOffset)
+      .lte("wheel_offset", maxOffset)
+      .gte("wheel_width", minWidth)
+      .lte("wheel_width", maxWidth)
+      .gte("lift_height", minLift)
+      .lte("lift_height", maxLift);
+
+    if (error) {
+      console.error("Verified build match lookup failed", error);
+      return "Verified-build match status could not be checked right now.";
+    }
+
+    if (!count) return "No closely matching verified builds yet - check back as the database grows.";
+    return `${count} similar verified ${count === 1 ? "build" : "builds"} found.`;
+  } catch (error) {
+    console.error("Verified build match lookup crashed", error);
+    return "Verified-build match status could not be checked right now.";
+  }
+}
+
 function buildFreeReport(report: ReturnType<typeof assessFitment> & { accessTier: "free" | "premium"; aiExplanation: null }) {
+  const { premiumInsights: _premiumInsights, premiumWarnings: _premiumWarnings, ...freeReport } = report;
+  void _premiumInsights;
+  void _premiumWarnings;
   return {
-    ...report,
+    ...freeReport,
     accessTier: "free" as const,
+    warnings: report.warnings.slice(0, 2),
     recommendations: report.recommendations.slice(0, 1),
     aiExplanation: {
       headline: report.verdict,
-      overviewAdvice: `${report.explanation} This free check gives a conservative overview of rubbing and clearance risk without verified-build comparison data.`,
+      overviewAdvice: "This free check gives a conservative overview of rubbing and clearance risk.",
       dailyDrivingAdvice: "For daily driving, verify full-lock clearance and listen for liner, mud-flap, or bumper contact before committing.",
       offRoadAdvice: "Trail use can create rubbing that does not appear on pavement because steering angle and suspension compression stack together.",
-      beforeYouCommit: "Upgrade to a premium check for the full report, detailed recommendations, and verified-build-supported comparisons when matching data exists.",
+      beforeYouCommit: "Premium checks add alternative setup comparison, trim-location detail, scenario breakdown, and verified-build match status.",
       disclaimer: "Estimate only. Final clearance should be verified on the actual vehicle."
     }
   };
