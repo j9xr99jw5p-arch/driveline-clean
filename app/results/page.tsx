@@ -37,6 +37,7 @@ export default function ResultsPage() {
   const { input, report } = result;
   const advice = normalizeAiExplanation(report.aiExplanation, report);
   const riskLabel = `${report.rubbingRisk.charAt(0).toUpperCase()}${report.rubbingRisk.slice(1)} rubbing risk`;
+  const isPremium = report.accessTier === "premium";
 
   return (
     <section className="band">
@@ -46,6 +47,9 @@ export default function ResultsPage() {
           <h1>Your Fitment Report</h1>
           <h2 style={{ marginTop: 12 }}>{report.verdict}</h2>
           <p className="lead">{report.explanation}</p>
+          {!isPremium ? (
+            <p className="muted">This free result shows the general clearance risk. Premium reports include detailed recommendations and verified-build-supported comparisons when matching data exists.</p>
+          ) : null}
           {notice ? <p className="muted">{notice}</p> : null}
           <div className="actions" style={{ justifyContent: "center" }}>
             <Link className="button primary" href="/check">Run another fitment check</Link>
@@ -97,38 +101,53 @@ export default function ResultsPage() {
             <p className="fitment-headline">{advice.headline}</p>
             <p>{advice.overviewAdvice}</p>
 
-            <section>
-              <h3>Daily Driving Notes</h3>
-              <p>{advice.dailyDrivingAdvice}</p>
-            </section>
+            {isPremium ? (
+              <>
+                <section>
+                  <h3>Daily Driving Notes</h3>
+                  <p>{advice.dailyDrivingAdvice}</p>
+                </section>
 
-            <section>
-              <h3>Off-Road Notes</h3>
-              <p>{advice.offRoadAdvice}</p>
-            </section>
+                <section>
+                  <h3>Off-Road Notes</h3>
+                  <p>{advice.offRoadAdvice}</p>
+                </section>
 
-            <section>
-              <h3>Before You Commit</h3>
-              <p>{advice.beforeYouCommit}</p>
-            </section>
+                <section>
+                  <h3>Before You Commit</h3>
+                  <p>{advice.beforeYouCommit}</p>
+                </section>
+              </>
+            ) : (
+              <section>
+                <h3>Premium report</h3>
+                <p>{advice.beforeYouCommit}</p>
+                <div className="actions">
+                  <Link className="button primary" href="/check">Get 2 Premium Checks</Link>
+                  <Link className="button" href="/builds">Preview Verified Builds</Link>
+                </div>
+              </section>
+            )}
           </div>
 
           <p className="fine fitment-disclaimer">{advice.disclaimer}</p>
         </div>
 
-        <div className="grid three" style={{ marginTop: 32 }}>
+        <div className={isPremium ? "grid three" : "grid two"} style={{ marginTop: 32 }}>
           <div className="card">
             <h2>Warnings</h2>
             <ul className="stack-list">
               {(report.warnings.length ? report.warnings : ["No major warnings were found for this setup."]).map((warning) => <li key={warning}>{warning}</li>)}
             </ul>
           </div>
-          <div className="card">
-            <h2>Recommendations</h2>
-            <ul className="stack-list">
-              {report.recommendations.map((recommendation) => <li key={recommendation}>{recommendation}</li>)}
-            </ul>
-          </div>
+          {isPremium ? (
+            <div className="card">
+              <h2>Recommendations</h2>
+              <ul className="stack-list">
+                {report.recommendations.map((recommendation) => <li key={recommendation}>{recommendation}</li>)}
+              </ul>
+            </div>
+          ) : null}
           <div className="card">
             <h2>Fitment Notes</h2>
             <p className="muted">{input.buildGoals || "No build goals were entered. Re-run the check with goals like daily comfort, less trimming, 33s, or trail use for better context."}</p>

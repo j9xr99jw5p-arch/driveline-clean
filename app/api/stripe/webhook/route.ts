@@ -11,6 +11,15 @@ import {
   saveUsersTableStripeCustomerId,
   upsertUserPlanForSubscription
 } from "@/lib/billing";
+import {
+  fitmentTwoChecksCreditQuantity,
+  fitmentTwoChecksEntitlementKey,
+  grantFitmentPurchaseEntitlement
+} from "@/lib/fitmentEntitlements";
+import {
+  currentVerifiedBuildAccessLabel,
+  validateFitmentCreditFulfillment
+} from "@/lib/fitmentCreditSecurity";
 import { buildOrderItemRows, normalizeSelectedItems } from "@/lib/packCheckout";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
@@ -18,6 +27,8 @@ import { getStripe } from "@/lib/stripe";
 function devLog(message: string, details?: unknown) {
   if (process.env.NODE_ENV !== "production") console.log(message, details ?? "");
 }
+
+class RetryableFitmentCreditWebhookError extends Error {}
 
 export async function POST(request: Request) {
   const body = await request.text();
@@ -43,6 +54,11 @@ export async function POST(request: Request) {
         const session = event.data.object as Stripe.Checkout.Session;
 
         if (session.mode === "payment") {
+          if (isFitmentCreditsCheckout(session)) {
+            await syncFitmentCreditsPurchase(session);
+            break;
+          }
+
           await syncProductOrder(session, event);
           break;
         }
@@ -73,7 +89,14 @@ export async function POST(request: Request) {
       }
       case "checkout.session.async_payment_succeeded": {
         const session = event.data.object as Stripe.Checkout.Session;
-        if (session.mode === "payment") await syncProductOrder(session, event);
+        if (session.mode === "payment") {
+          if (isFitmentCreditsCheckout(session)) {
+            await syncFitmentCreditsPurchase(session);
+            break;
+          }
+
+          await syncProductOrder(session, event);
+        }
         break;
       }
       case "customer.subscription.created":
@@ -96,6 +119,10 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     console.error("Stripe webhook processing failed", event.type, error);
+    if (error instanceof RetryableFitmentCreditWebhookError) {
+      return NextResponse.json({ error: "Retry fitment credit fulfillment" }, { status: 500 });
+    }
+
     return NextResponse.json({ received: true });
   }
 
@@ -303,6 +330,70 @@ export async function POST(request: Request) {
 
     if (itemError) console.error("Custom pack order items upsert failed", itemError);
   }
+
+  async function syncFitmentCreditsPurchase(session: Stripe.Checkout.Session) {
+    const expectedPriceId = process.env.STRIPE_FITMENT_TWO_CHECKS_PRICE_ID;
+    const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 10 });
+    const fulfillmentCheck = validateFitmentCreditFulfillment({
+      session: {
+        id: session.id,
+        mode: session.mode,
+        payment_status: session.payment_status,
+        metadata: session.metadata,
+        client_reference_id: session.client_reference_id
+      },
+      lineItems: lineItems.data,
+      expectedPriceId,
+      entitlementKey: fitmentTwoChecksEntitlementKey,
+      normalizeUserId: normalizeSupabaseUserId
+    });
+
+    if (!fulfillmentCheck.ok) {
+      console.error("Fitment credits fulfillment skipped", {
+        sessionId: session.id,
+        reason: fulfillmentCheck.reason
+      });
+      return;
+    }
+
+    const userId = fulfillmentCheck.userId;
+    const customerId = normalizeStripeCustomerId(session.customer);
+    if (customerId) {
+      await saveStripeCustomerMapping(supabase, userId, customerId, session.customer_details?.email ?? null);
+      await saveUsersTableStripeCustomerId(supabase, userId, customerId);
+    }
+
+    try {
+      await grantFitmentPurchaseEntitlement({
+        supabase,
+        userId,
+        stripeCheckoutSessionId: session.id,
+        stripePaymentIntentId: normalizePaymentIntentId(session.payment_intent),
+        metadata: {
+          stripe_price_id: expectedPriceId,
+          premium_checks: fitmentTwoChecksCreditQuantity,
+          session_mode: session.mode,
+          livemode: session.livemode,
+          premium_build_access_policy: currentVerifiedBuildAccessLabel
+        }
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        devLog("Fitment credits fulfillment already processed", { sessionId: session.id });
+        return;
+      }
+
+      throw new RetryableFitmentCreditWebhookError("Fitment credit fulfillment failed");
+    }
+  }
+}
+
+function isFitmentCreditsCheckout(session: Stripe.Checkout.Session) {
+  return session.mode === "payment" && session.metadata?.entitlement_key === fitmentTwoChecksEntitlementKey;
+}
+
+function isUniqueViolation(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
 }
 
 function normalizePaymentIntentId(paymentIntent: string | Stripe.PaymentIntent | null): string | null {

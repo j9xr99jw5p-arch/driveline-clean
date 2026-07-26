@@ -1,6 +1,9 @@
 import { FitmentForm } from "./FitmentForm";
+import { getFitmentEntitlementForCurrentUser } from "@/lib/fitmentEntitlements";
 
-export default function CheckPage() {
+export default async function CheckPage() {
+  const entitlement = await getFitmentEntitlementForCurrentUser();
+
   return (
     <section className="band">
       <div className="section grid two">
@@ -21,7 +24,7 @@ export default function CheckPage() {
             <p className="muted">Use the exact tire format when you can, like 285/70R17 or 35x12.50R17. Wheel offset accepts stock, positive, zero, and negative offsets.</p>
           </div>
         </div>
-        <FitmentForm />
+        <FitmentForm entitlement={entitlement} />
       </div>
     </section>
   );

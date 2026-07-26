@@ -7,6 +7,12 @@ import { callFitmentAi, normalizeAiExplanation } from "@/lib/fitmentAi";
 import { loadTruckProfile, saveFitmentResult, saveTruckProfile } from "@/lib/reportRenderer";
 import type { FitmentInput, FitmentReport } from "@/lib/types";
 
+type FitmentFormEntitlement = {
+  isAuthenticated: boolean;
+  premiumChecksRemaining: number;
+  canRunPremiumCheck: boolean;
+};
+
 const years = Array.from({ length: 8 }, (_, index) => String(2023 - index));
 const trims = ["SR", "SR5", "TRD Sport", "TRD Off-Road", "TRD Pro", "Limited"];
 const cabs = ["Access Cab", "Double Cab"];
@@ -25,10 +31,11 @@ const rearLoads = [
   { value: "constant-heavy", label: "Constant rack, drawers, bumper, or tools" }
 ];
 
-export function FitmentForm() {
+export function FitmentForm({ entitlement }: { entitlement: FitmentFormEntitlement }) {
   const [status, setStatus] = useState<string | null>(null);
   const [profile, setProfile] = useState<FitmentInput | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -37,52 +44,98 @@ export function FitmentForm() {
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const mode = submitter?.value === "premium" ? "premium" : "free";
+
+    if (mode === "premium" && !entitlement.isAuthenticated) {
+      router.push("/account?auth=required");
+      return;
+    }
+
+    if (mode === "premium" && !entitlement.canRunPremiumCheck) {
+      setStatus("You do not have any premium checks remaining. Get two premium checks to unlock the full report.");
+      return;
+    }
+
     setIsSubmitting(true);
-    setStatus("Generating fitment report");
+    setStatus(mode === "premium" ? "Generating premium fitment report" : "Generating free fitment check");
     const formData = new FormData(event.currentTarget);
     const input = normalizeFitmentInput(Object.fromEntries(formData));
     const deterministicReport = assessFitment(input);
-
-    setStatus("Generating fitment report");
-    const aiResult = await callFitmentAi({
-      input,
-      deterministicReport
-    });
-    const aiExplanation = aiResult.report;
-    const normalizedAiExplanation = normalizeAiExplanation(aiExplanation, deterministicReport);
-    const finalReport: FitmentReport = {
-      ...deterministicReport,
-      aiExplanation: normalizedAiExplanation
-    };
-
-    saveFitmentResult(input, finalReport);
-    saveTruckProfile(input);
-    setProfile(input);
-
-    if (!aiExplanation) {
-      sessionStorage.setItem(
-        "drivelineReportNotice",
-        aiResult.notice ?? "We’re having trouble generating your full fitment report right now. We’re working to fix it as quickly as possible. Please try again in a moment."
-      );
-    }
+    let normalizedAiExplanation = null;
 
     try {
+      if (mode === "premium") {
+        const aiResult = await callFitmentAi({
+          input,
+          deterministicReport
+        });
+
+        if (!aiResult.report) {
+          setStatus(aiResult.notice ?? "We’re having trouble generating the premium AI report right now. No premium check was used.");
+          return;
+        }
+
+        normalizedAiExplanation = normalizeAiExplanation(aiResult.report, deterministicReport);
+      }
+
       const response = await fetch("/api/fitment/assess", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ input, aiExplanation: normalizedAiExplanation })
+        body: JSON.stringify({
+          input,
+          mode,
+          requestId: crypto.randomUUID(),
+          aiExplanation: normalizedAiExplanation
+        })
       });
       const payload = await response.json();
       if (!response.ok) {
-        sessionStorage.setItem("drivelineReportNotice", "We’re having trouble saving your fitment report right now. Your report is still available on this device.");
+        throw new Error(payload?.error ?? "We’re having trouble generating your fitment report right now.");
       } else if (payload.garageSyncError) {
         sessionStorage.setItem("drivelineReportNotice", "We’re having trouble saving your garage details right now. Your fitment report is still available.");
       }
+
+      const finalReport = payload.report as FitmentReport;
+      saveFitmentResult(input, finalReport);
+      saveTruckProfile(input);
+      setProfile(input);
+      router.push("/results");
     } catch (error) {
       console.error("Could not save fitment report", error);
-      sessionStorage.setItem("drivelineReportNotice", "We’re having trouble saving your fitment report right now. Your report is still available on this device.");
+      setStatus(error instanceof Error ? error.message : "We’re having trouble generating your fitment report right now.");
     } finally {
-      router.push("/results");
+      setIsSubmitting(false);
+    }
+  }
+
+  async function startCheckout() {
+    if (!entitlement.isAuthenticated) {
+      router.push("/account?auth=required");
+      return;
+    }
+
+    setIsCheckingOut(true);
+    setStatus(null);
+
+    try {
+      const response = await fetch("/api/checkout/fitment-credits", { method: "POST" });
+      const payload = await response.json();
+
+      if (!response.ok || !payload?.url) {
+        if (payload?.redirectUrl) {
+          router.push(payload.redirectUrl);
+          return;
+        }
+
+        throw new Error(payload?.error ?? "We’re having trouble opening checkout right now.");
+      }
+
+      window.location.assign(payload.url);
+    } catch (error) {
+      console.error("Fitment credits checkout failed", error);
+      setStatus(error instanceof Error ? error.message : "We’re having trouble opening checkout right now.");
+      setIsCheckingOut(false);
     }
   }
 
@@ -115,8 +168,24 @@ export function FitmentForm() {
           <span>Build goals</span>
           <textarea name="buildGoals" defaultValue={profile?.buildGoals ?? ""} placeholder="Daily comfort, 33s, overland weight, less trimming, etc." />
         </label>
-        <button className="button primary full" type="submit" disabled={isSubmitting}>{isSubmitting ? "Generating fitment report" : "Generate Fitment Report"}</button>
+        <div className="grid two">
+          <button className="button full" type="submit" name="mode" value="free" disabled={isSubmitting}>
+            {isSubmitting ? "Generating..." : "Get Basic Result - Free"}
+          </button>
+          <button className="button primary full" type="submit" name="mode" value="premium" disabled={isSubmitting || !entitlement.canRunPremiumCheck}>
+            {isSubmitting ? "Generating..." : "Use 1 Premium Check"}
+          </button>
+        </div>
       </form>
+      <div className="card" style={{ marginTop: 16 }}>
+        <p className="eyebrow">Premium access</p>
+        <h3>Two Premium Fitment Checks</h3>
+        <p className="muted">$14 one-time. Includes two full fitment reports and Verified Builds access under the current access policy.</p>
+        <div className="spec-row"><span className="muted">Premium checks remaining</span><strong>{entitlement.premiumChecksRemaining}</strong></div>
+        <button className="button primary full" type="button" onClick={startCheckout} disabled={isCheckingOut}>
+          {isCheckingOut ? "Opening checkout..." : "Get 2 Premium Checks"}
+        </button>
+      </div>
       {status ? <p className="muted" style={{ marginTop: 16 }}>{status}</p> : null}
     </div>
   );

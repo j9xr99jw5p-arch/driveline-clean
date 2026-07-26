@@ -62,6 +62,8 @@ export type FitmentInput = {
 };
 
 export type FitmentReport = {
+  accessTier?: "free" | "premium";
+  remainingPremiumChecks?: number;
   verdict: string;
   rubbingRisk: FitmentRisk;
   trimmingLikely: boolean;

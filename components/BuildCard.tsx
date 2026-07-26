@@ -9,13 +9,13 @@ import {
 import { getPublicSocialHandle } from "@/lib/buildPrivacy";
 import type { VerifiedBuild } from "@/lib/types";
 
-export function BuildCard({ build }: { build: VerifiedBuild }) {
+export function BuildCard({ build, locked = false }: { build: VerifiedBuild; locked?: boolean }) {
   const photo = build.verified_build_photos?.[0];
   const socialHandle = getPublicSocialHandle(build);
   const title = formatBuildTitle(build);
 
   return (
-    <Link className="card build-card" href={`/builds/${build.id}`}>
+    <Link className="card build-card" href={locked ? "/check" : `/builds/${build.id}`}>
       <div className="build-card-image-frame">
         {photo ? (
           <>
@@ -35,6 +35,7 @@ export function BuildCard({ build }: { build: VerifiedBuild }) {
           <p>{formatPrimaryFitmentDetails(build)}</p>
           <p>{formatSecondaryFitmentDetails(build)}</p>
           {socialHandle ? <p>{socialHandle}</p> : null}
+          {locked ? <p>Unlock full details with premium access</p> : null}
         </div>
       </div>
     </Link>

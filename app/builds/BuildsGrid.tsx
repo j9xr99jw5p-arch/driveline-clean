@@ -19,7 +19,7 @@ const defaultFilters: FilterState = {
   rubbing: "all"
 };
 
-export function BuildsGrid({ builds }: { builds: VerifiedBuild[] }) {
+export function BuildsGrid({ builds, locked = false }: { builds: VerifiedBuild[]; locked?: boolean }) {
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
 
   const options = useMemo(() => ({
@@ -73,7 +73,7 @@ export function BuildsGrid({ builds }: { builds: VerifiedBuild[] }) {
 
       {filteredBuilds.length ? (
         <div className="grid three">
-          {filteredBuilds.map((build) => <BuildCard key={build.id} build={build} />)}
+          {filteredBuilds.map((build) => <BuildCard key={build.id} build={build} locked={locked} />)}
         </div>
       ) : (
         <div className="card">

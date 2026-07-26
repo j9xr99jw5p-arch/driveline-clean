@@ -1,14 +1,17 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { BuildPhotoCarousel, type BuildPhoto } from "@/components/BuildPhotoCarousel";
 import { ExpandableText } from "@/components/ExpandableText";
 import { cleanJoin, formatBooleanLabel, formatBuildTitle, formatRubbingLabel, formatSuspension, formatWheelTireCombo } from "@/lib/buildDisplay";
 import { getPublicSocialHandle, sanitizePublicBuildNotes } from "@/lib/buildPrivacy";
 import { getReviewedBuildSummary } from "@/lib/buildSummary";
+import { getFitmentEntitlementForCurrentUser } from "@/lib/fitmentEntitlements";
 import { applyVariantAddOnPricing } from "@/lib/products";
 import { getStripePriceMap, resolveDisplayPrice } from "@/lib/stripePrices";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient, hasSupabaseServerEnv } from "@/lib/supabase/server";
 import type { VerifiedBuild } from "@/lib/types";
+import { previewBuildDetailSelect, sanitizeVerifiedBuildPreview } from "@/lib/verifiedBuildAccess";
 import {
   BuildProductCarousel,
   type BuildProductCardData,
@@ -62,7 +65,39 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
   if (!hasSupabaseServerEnv()) notFound();
 
   const { id } = await params;
+  const entitlement = await getFitmentEntitlementForCurrentUser();
   const supabase = await createSupabaseServerClient();
+  if (!entitlement.canViewPremiumBuilds) {
+    const { data: previewBuild } = await supabase
+      .from("verified_builds")
+      .select(previewBuildDetailSelect)
+      .eq("id", id)
+      .eq("published", true)
+      .single();
+
+    if (!previewBuild) notFound();
+    const sanitizedPreviewBuild = sanitizeVerifiedBuildPreview(previewBuild as Partial<VerifiedBuild>);
+
+    return (
+      <section className="band">
+        <div className="section page-head center">
+          <p className="eyebrow">Premium Verified Build</p>
+          <h1>{formatBuildTitle(sanitizedPreviewBuild as VerifiedBuild)}</h1>
+          <p className="lead">Full wheel, tire, suspension, rubbing, trimming, notes, and parts details are included with premium Verified Builds access.</p>
+          <div className="card" style={{ maxWidth: 760, margin: "0 auto" }}>
+            <span className={`pill ${sanitizedPreviewBuild.fitment_risk}`}>{sanitizedPreviewBuild.fitment_risk} risk</span>
+            <h2 style={{ marginTop: 16 }}>Unlock this build</h2>
+            <p className="muted">$14 one-time gets two premium fitment checks and Verified Builds access under the current access policy.</p>
+            <div className="actions" style={{ justifyContent: "center" }}>
+              <Link className="button primary" href="/check">Get 2 Premium Checks</Link>
+              <Link className="button" href="/builds">Back to Builds Preview</Link>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   const { data: build } = await supabase
     .from("verified_builds")
     .select("*")

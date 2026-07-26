@@ -3,9 +3,11 @@ import { getCurrentSupabaseUser } from "@/lib/supabase/auth";
 import { isPaidPlanActive, repairBillingLinksForUser } from "@/lib/billing";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isAdminEmail } from "@/lib/adminAccess";
+import { getFitmentEntitlementForUser } from "@/lib/fitmentEntitlements";
 import { SignInForm } from "./SignInForm";
 import { PortalButton } from "./PortalButton";
 import { SignOutButton } from "./SignOutButton";
+import { FitmentCreditsCheckoutButton } from "./FitmentCreditsCheckoutButton";
 
 export default async function AccountPage() {
   if (!hasSupabaseServerEnv()) {
@@ -61,6 +63,7 @@ export default async function AccountPage() {
   const { data: plan } = await admin.from("user_plans").select("*").eq("user_id", userId).maybeSingle();
   const { data: stripeCustomer } = await admin.from("stripe_customers").select("*").eq("user_id", userId).maybeSingle();
   const { data: subscription } = await admin.from("subscriptions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const fitmentEntitlement = await getFitmentEntitlementForUser(userId);
   const hasPaidAccess = isPaidPlanActive(plan?.plan, plan?.status);
   const planName = hasPaidAccess ? "Builder Plus" : "Free";
   const checkLimit = (plan?.fitment_check_limit ?? 3) >= 999999 ? "Unlimited" : String(plan?.fitment_check_limit ?? 3);
@@ -90,6 +93,14 @@ export default async function AccountPage() {
           <div className="spec-row"><span className="muted">Plan</span><strong>{planName}</strong></div>
           <div className="spec-row"><span className="muted">Checks used</span><strong>{plan?.fitment_checks_used ?? 0} / {checkLimit}</strong></div>
           <div className="spec-row"><span className="muted">Subscription</span><strong>{hasPaidAccess ? plan?.status : subscription?.status ?? "none"}</strong></div>
+          <hr style={{ borderColor: "var(--border-color)", margin: "20px 0" }} />
+          <h2>One-time fitment credits</h2>
+          <div className="spec-row"><span className="muted">Premium checks remaining</span><strong>{fitmentEntitlement.premiumChecksRemaining}</strong></div>
+          <div className="spec-row"><span className="muted">Verified Builds access</span><strong>{fitmentEntitlement.canViewPremiumBuilds ? "Active" : "Not active"}</strong></div>
+          <p className="fine" style={{ marginTop: 10 }}>$14 one-time includes two premium fitment checks and Verified Builds access under the current access policy.</p>
+          <div style={{ marginTop: 16 }}><FitmentCreditsCheckoutButton /></div>
+          <hr style={{ borderColor: "var(--border-color)", margin: "20px 0" }} />
+          <h2>Legacy subscription billing</h2>
           <div style={{ marginTop: 20 }}><PortalButton /></div>
           <div style={{ marginTop: 12 }}><SignOutButton /></div>
           {canAccessAdmin ? (
