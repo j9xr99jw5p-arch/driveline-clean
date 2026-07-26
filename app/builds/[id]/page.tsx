@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { BuildPhotoCarousel, type BuildPhoto } from "@/components/BuildPhotoCarousel";
+import { FitmentCreditsCheckoutButton } from "@/app/account/FitmentCreditsCheckoutButton";
 import { ExpandableText } from "@/components/ExpandableText";
 import { cleanJoin, formatBooleanLabel, formatBuildTitle, formatRubbingLabel, formatSuspension, formatWheelTireCombo } from "@/lib/buildDisplay";
 import { getPublicSocialHandle, sanitizePublicBuildNotes } from "@/lib/buildPrivacy";
@@ -102,7 +103,7 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
             </div>
             <p className="muted">$14 one-time gets two premium fitment checks and Verified Builds access under the current access policy.</p>
             <div className="actions" style={{ justifyContent: "center" }}>
-              <Link className="button primary" href="/check">Unlock it</Link>
+              <FitmentCreditsCheckoutButton label="Unlock it" className="button primary" />
               <Link className="button" href="/builds">Back to Builds Preview</Link>
             </div>
           </div>

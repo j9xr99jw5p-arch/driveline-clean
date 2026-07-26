@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 
-export function FitmentCreditsCheckoutButton() {
+export function FitmentCreditsCheckoutButton({
+  label = "Get 2 Premium Checks",
+  className = "button primary full"
+}: {
+  label?: string;
+  className?: string;
+}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,8 +39,8 @@ export function FitmentCreditsCheckoutButton() {
 
   return (
     <>
-      <button className="button primary full" type="button" disabled={loading} onClick={checkout}>
-        {loading ? "Opening checkout..." : "Get 2 Premium Checks"}
+      <button className={className} type="button" disabled={loading} onClick={checkout}>
+        {loading ? "Opening checkout..." : label}
       </button>
       {error ? <p className="fine" style={{ marginTop: 10 }}>{error}</p> : null}
     </>
