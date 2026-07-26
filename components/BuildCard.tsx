@@ -15,7 +15,7 @@ export function BuildCard({ build, locked = false }: { build: VerifiedBuild; loc
   const title = locked ? `${build.year} ${build.make} ${build.model}` : formatBuildTitle(build);
 
   return (
-    <Link className="card build-card" href={locked ? "/check" : `/builds/${build.id}`}>
+    <Link className="card build-card" href={`/builds/${build.id}`}>
       <div className="build-card-image-frame">
         {photo ? (
           <>
@@ -28,16 +28,7 @@ export function BuildCard({ build, locked = false }: { build: VerifiedBuild; loc
       </div>
       <div className="build-body">
         <h3>{title}</h3>
-        {locked ? (
-          <>
-            <div className="locked-build-labels" aria-label="Locked build details">
-              {["Wheel specs", "Tire specs", "Lift", "Rubbing", "Trimming", "Full photo gallery"].map((label) => (
-                <span key={label}>{label}</span>
-              ))}
-            </div>
-            <span className="button primary full build-unlock-button">Unlock full build</span>
-          </>
-        ) : (
+        {!locked ? (
           <>
             <span className={`pill ${build.fitment_risk}`}>{build.fitment_risk} risk</span>
             <p className="build-combo">{formatWheelTireCombo(build)}</p>
@@ -48,7 +39,7 @@ export function BuildCard({ build, locked = false }: { build: VerifiedBuild; loc
               {socialHandle ? <p>{socialHandle}</p> : null}
             </div>
           </>
-        )}
+        ) : null}
       </div>
     </Link>
   );

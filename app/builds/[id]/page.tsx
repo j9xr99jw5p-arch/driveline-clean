@@ -84,7 +84,7 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
         <div className="section page-head center">
           <p className="eyebrow">Premium Verified Build</p>
           <h1>{title}</h1>
-          <p className="lead">Full wheel, tire, suspension, rubbing, trimming, notes, and parts details are included with premium Verified Builds access.</p>
+          <p className="lead">Premium Verified Builds access is needed to view the setup details, notes, parts, and photo gallery.</p>
           <div className="card" style={{ maxWidth: 760, margin: "0 auto" }}>
             {photo ? (
               <div className="build-card-image-frame build-lock-preview-image">
@@ -102,7 +102,7 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
             </div>
             <p className="muted">$14 one-time gets two premium fitment checks and Verified Builds access under the current access policy.</p>
             <div className="actions" style={{ justifyContent: "center" }}>
-              <Link className="button primary" href="/check">Unlock full build</Link>
+              <Link className="button primary" href="/check">Unlock it</Link>
               <Link className="button" href="/builds">Back to Builds Preview</Link>
             </div>
           </div>
