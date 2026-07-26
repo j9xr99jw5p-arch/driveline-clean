@@ -124,11 +124,11 @@ export async function POST(request: Request) {
     }
 
     if (!insertData.make || !insertData.model || !insertData.tire_size || !insertData.wheel_size) {
-      return NextResponse.json({ error: "Missing required build fields." }, { status: 400 });
+      return NextResponse.json({ error: "Missing build fields." }, { status: 400 });
     }
 
-    if (!insertData.source_url && !hasAttachment) {
-      return NextResponse.json({ error: "Please add either a source URL or a photo/file attachment." }, { status: 400 });
+    if (!hasAttachment) {
+      return NextResponse.json({ error: "Please attach at least one photo or file." }, { status: 400 });
     }
 
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {

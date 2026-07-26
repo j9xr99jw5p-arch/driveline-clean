@@ -37,7 +37,7 @@ const initialRequiredState: RequiredState = {
   bodyMountChop: ""
 };
 
-const requiredSourceMessage = "Please add either a source URL or at least one photo/file attachment.";
+const attachmentMessage = "Please attach at least one photo or file.";
 
 export function SubmitBuildForm() {
   const router = useRouter();
@@ -65,7 +65,7 @@ export function SubmitBuildForm() {
     const form = event.currentTarget;
 
     if (!canSubmit) {
-      setStatus("Please complete the required vehicle, fitment, clearance, and social handle fields.");
+      setStatus("Please complete the highlighted vehicle, fitment, clearance, and social handle fields.");
       return;
     }
 
@@ -80,8 +80,8 @@ export function SubmitBuildForm() {
       submitData.delete("attachment");
       submitData.set("hasAttachment", files.length > 0 ? "yes" : "");
 
-      if (!String(submitData.get("sourceUrl") || "").trim() && files.length === 0) {
-        setStatus(requiredSourceMessage);
+      if (files.length === 0) {
+        setStatus(attachmentMessage);
         return;
       }
 
@@ -229,10 +229,10 @@ export function SubmitBuildForm() {
 
   return (
     <form className="card form" onSubmit={onSubmit} encType="multipart/form-data">
-      <FormSection title="Contact Info" copy="Tell us who submitted the build. Public build pages only show your social handle. Contact email is optional and stays private.">
+      <FormSection title="Contact Info" copy="Tell us who submitted the build. Public build pages only show your social handle. Contact email stays private.">
         <div className="grid two">
           <Field name="socialHandle" label="Instagram/social handle" placeholder="@username" value={requiredState.socialHandle} onValueChange={updateRequiredField("socialHandle")} required />
-          <Field name="contactEmail" label="Contact email, optional" placeholder="you@example.com" type="email" required={false} />
+          <Field name="contactEmail" label="Contact email" placeholder="you@example.com" type="email" required={false} />
         </div>
       </FormSection>
 
@@ -243,75 +243,73 @@ export function SubmitBuildForm() {
         </div>
         <div className="grid two">
           <Field name="model" label="Model" placeholder="Tacoma, F-150, Silverado, Gladiator, etc." value={requiredState.model} onValueChange={updateRequiredField("model")} required />
-          <Field name="trim" label="Trim, if known" placeholder="TRD Off-Road, Rubicon, ZR2, etc." required={false} />
+          <Field name="trim" label="Trim" placeholder="TRD Off-Road, Rubicon, ZR2, etc." required={false} />
         </div>
         <div className="grid two">
-          <Field name="cab" label="Cab, if known" placeholder="Double Cab, Crew Cab, Access Cab, etc." required={false} />
-          <Field name="bed" label="Bed length, if known" placeholder="5 foot, 6 foot, short bed, long bed, etc." required={false} />
+          <Field name="cab" label="Cab" placeholder="Double Cab, Crew Cab, Access Cab, etc." required={false} />
+          <Field name="bed" label="Bed length" placeholder="5 foot, 6 foot, short bed, long bed, etc." required={false} />
         </div>
       </FormSection>
 
       <FormSection title="Wheels & Tires">
         <div className="grid two">
-          <Field name="tireBrand" label="Tire brand, if known" placeholder="Falken" required={false} />
-          <Field name="tireModel" label="Tire model, if known" placeholder="Wildpeak A/T4W" required={false} />
+          <Field name="tireBrand" label="Tire brand" placeholder="Falken" required={false} />
+          <Field name="tireModel" label="Tire model" placeholder="Wildpeak A/T4W" required={false} />
         </div>
         <Field name="tireSize" label="Tire size" placeholder="285/70R17" value={requiredState.tireSize} onValueChange={updateRequiredField("tireSize")} required />
         <div className="grid two">
-          <Field name="wheelBrand" label="Wheel brand, if known" placeholder="Method" required={false} />
-          <Field name="wheelModel" label="Wheel model, if known" placeholder="316" required={false} />
+          <Field name="wheelBrand" label="Wheel brand" placeholder="Method" required={false} />
+          <Field name="wheelModel" label="Wheel model" placeholder="316" required={false} />
         </div>
         <div className="grid two">
           <Field name="wheelSize" label="Wheel size" placeholder="17x8.5" value={requiredState.wheelSize} onValueChange={updateRequiredField("wheelSize")} required />
-          <Field name="wheelOffset" label="Wheel offset, if known" placeholder="-12" inputMode="decimal" required={false} />
+          <Field name="wheelOffset" label="Wheel offset" placeholder="-12" inputMode="decimal" required={false} />
         </div>
       </FormSection>
 
-      <FormSection title="Suspension & Clearance" copy="Add either the lift height or suspension setup. If you know both, include both.">
+      <FormSection title="Suspension & Clearance" copy="Add lift height, suspension setup, or both.">
         <div className="grid two">
-          <Field name="liftHeight" label="Lift height, if known" placeholder="2.5, leveled, stock, etc." inputMode="decimal" value={requiredState.liftHeight} onValueChange={updateRequiredField("liftHeight")} required={false} />
-          <Field name="suspensionType" label="Suspension type, if known" placeholder="Level kit" required={false} />
+          <Field name="liftHeight" label="Lift height" placeholder="2.5, leveled, stock, etc." inputMode="decimal" value={requiredState.liftHeight} onValueChange={updateRequiredField("liftHeight")} required={false} />
+          <Field name="suspensionType" label="Suspension type" placeholder="Level kit" required={false} />
         </div>
         <div className="grid two">
-          <Field name="suspensionBrand" label="Suspension brand, if known" placeholder="Fox" required={false} />
-          <Field name="suspensionModel" label="Suspension model, if known" placeholder="2.5" required={false} />
+          <Field name="suspensionBrand" label="Suspension brand" placeholder="Fox" required={false} />
+          <Field name="suspensionModel" label="Suspension model" placeholder="2.5" required={false} />
         </div>
         <Field name="suspensionSetup" label="Suspension setup/details" placeholder="Coilovers, UCAs, rear leafs, spacers, etc." value={requiredState.suspensionSetup} onValueChange={updateRequiredField("suspensionSetup")} required={false} />
         <Field name="rubbingSeverity" label="How bad is the rubbing?" placeholder="None, minor, moderate, severe, unknown, etc." value={requiredState.rubbingSeverity} onValueChange={updateRequiredField("rubbingSeverity")} required />
         <div className="grid two">
-          <Field name="trimmingRequired" label="Trimming required?" placeholder="Yes, no, unknown, liner only, mud flap removed, etc." value={requiredState.trimmingRequired} onValueChange={updateRequiredField("trimmingRequired")} required />
+          <Field name="trimmingRequired" label="Was trimming needed?" placeholder="Yes, no, unknown, liner only, mud flap removed, etc." value={requiredState.trimmingRequired} onValueChange={updateRequiredField("trimmingRequired")} required />
           <Field name="bodyMountChop" label="Body mount chop done?" placeholder="Yes, no, unknown, not applicable, etc." value={requiredState.bodyMountChop} onValueChange={updateRequiredField("bodyMountChop")} required />
         </div>
-        <Field name="fitmentRisk" label="Fitment risk, if known" placeholder="Low, medium, high, unknown, etc." required={false} />
+        <Field name="fitmentRisk" label="Fitment risk" placeholder="Low, medium, high, unknown, etc." required={false} />
         <label className="field">
-          <span>Fitment/rubbing notes, optional</span>
+          <span>Fitment/rubbing notes</span>
           <textarea name="fitmentNotes" placeholder="Describe rubbing, trimming, alignment, wheel spacers, payload, or anything that affects clearance." />
         </label>
       </FormSection>
 
       <FormSection title="Extra Build Details">
-        <Field name="sourceUrl" label="Source URL" placeholder="https://..." type="url" required={false} />
-        <p className="fine">Add a source URL or attach a photo/file below so we can verify the submission.</p>
         <label className="field">
-          <span>Lighting upgrades, optional</span>
+          <span>Lighting upgrades</span>
           <textarea name="lightingUpgrades" placeholder="Light bars, pods, ditch lights, fogs, switch panels, wiring, or anything lighting-related." />
         </label>
         <label className="field">
-          <span>Favorite mods / recommendations, optional</span>
+          <span>Favorite mods / recommendations</span>
           <textarea name="favoriteModifications" placeholder="What upgrades do you like most, or what would you recommend to other Tacoma owners?" />
         </label>
         <label className="field">
-          <span>Full build list / extra notes, optional</span>
+          <span>Full build list / extra notes</span>
           <textarea name="fullBuildList" placeholder="Already have your setup written out? Paste the full build list here." />
           <small className="fine">Already have your setup written out? Paste the full build list here.</small>
         </label>
       </FormSection>
 
-      <FormSection title="Upload File" copy="Photos, screenshots, and spec sheets are helpful. A source URL or attachment is required.">
+      <FormSection title="Upload File" copy="Photos, screenshots, and spec sheets help us verify the submission.">
         <label className="field">
-          <span>Photo or file attachment</span>
+          <span>Photo or file attachment <RequiredMark /></span>
           <input name="attachment" type="file" accept="image/*,.pdf,.txt,.doc,.docx" multiple />
-          <small className="fine">Required if you did not add a source URL. Attach screenshots, notes files, spec sheets, or photos.</small>
+          <small className="fine">Attach screenshots, notes files, spec sheets, or photos.</small>
         </label>
       </FormSection>
 
@@ -343,7 +341,7 @@ function Field(props: React.InputHTMLAttributes<HTMLInputElement> & {
   const { label, required = true, onValueChange, onChange, ...inputProps } = props;
   return (
     <label className="field">
-      <span>{label} <em>{required ? "required" : "optional"}</em></span>
+      <span>{label}{required ? <RequiredMark /> : null}</span>
       <input
         {...inputProps}
         required={required}
@@ -354,4 +352,8 @@ function Field(props: React.InputHTMLAttributes<HTMLInputElement> & {
       />
     </label>
   );
+}
+
+function RequiredMark() {
+  return <span className="required-mark" aria-hidden="true">*</span>;
 }
