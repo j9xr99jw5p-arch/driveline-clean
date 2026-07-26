@@ -705,6 +705,33 @@ p {
   line-height: 1.18;
 }
 
+.locked-build-labels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.locked-build-labels span {
+  min-width: 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: rgba(15, 18, 24, 0.82);
+  font-size: 0.85rem;
+  font-weight: 750;
+  text-align: center;
+}
+
+.build-unlock-button {
+  pointer-events: none;
+}
+
+.build-lock-preview-image {
+  margin: -1rem -1rem 1rem;
+  width: calc(100% + 2rem);
+}
+
 .build-story {
   margin-top: 1.15rem;
   padding: 1.2rem 0;

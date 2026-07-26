@@ -1,14 +1,25 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Database, Search } from "lucide-react";
-import { formatBuildTitle } from "@/lib/buildDisplay";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { VerifiedBuild } from "@/lib/types";
+import { previewBuildListSelect, type VerifiedBuildPreview } from "@/lib/verifiedBuildAccess";
 
 export const dynamic = "force-dynamic";
+
+type FeaturedBuildPreview = {
+  id: string;
+  year: number;
+  make: string;
+  model: string;
+  verified_build_photos?: Array<{
+    url: string;
+    alt_text: string | null;
+  }>;
+};
 
 export default async function HomePage() {
   const featuredBuild = await getFeaturedBuildOfTheDay();
   const featuredPhoto = featuredBuild?.verified_build_photos?.[0] ?? null;
+  const featuredTitle = featuredBuild ? `${featuredBuild.year} ${featuredBuild.make} ${featuredBuild.model}` : "";
 
   return (
     <>
@@ -110,11 +121,11 @@ export default async function HomePage() {
             <article className="featured-build-card homepage-featured-build">
               <div className="featured-build-image">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={featuredPhoto.url} alt={featuredPhoto.alt_text ?? formatBuildTitle(featuredBuild)} />
+                <img src={featuredPhoto.url} alt={featuredPhoto.alt_text ?? featuredTitle} />
               </div>
               <div className="featured-build-copy">
                 <p className="eyebrow">Published Build</p>
-                <h3>{formatBuildTitle(featuredBuild)}</h3>
+                <h3>{featuredTitle}</h3>
                 <Link className="button full" href={`/builds/${featuredBuild.id}`}>View Build Details</Link>
               </div>
             </article>
@@ -157,24 +168,28 @@ export default async function HomePage() {
   );
 }
 
-async function getFeaturedBuildOfTheDay() {
+async function getFeaturedBuildOfTheDay(): Promise<FeaturedBuildPreview | null> {
   try {
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
-      .from("verified_builds")
-      .select("*, verified_build_photos(*)")
-      .eq("published", true)
-      .order("created_at", { ascending: true });
+      .from("verified_build_previews")
+      .select(previewBuildListSelect)
+      .order("year", { ascending: true });
 
     if (error) {
       console.error("Homepage featured build query failed:", error);
       return null;
     }
 
-    const buildsWithPhotos = ((data ?? []) as VerifiedBuild[])
+    const buildsWithPhotos = ((data ?? []) as VerifiedBuildPreview[])
       .map((build) => ({
-        ...build,
-        verified_build_photos: [...(build.verified_build_photos ?? [])].sort((a, b) => a.sort_order - b.sort_order)
+        id: build.id,
+        year: build.year,
+        make: build.make,
+        model: build.model,
+        verified_build_photos: build.primary_photo_url
+          ? [{ url: build.primary_photo_url, alt_text: build.primary_photo_alt_text }]
+          : []
       }))
       .filter((build) => (build.verified_build_photos ?? []).length > 0);
 

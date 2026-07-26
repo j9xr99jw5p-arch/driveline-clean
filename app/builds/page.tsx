@@ -1,8 +1,9 @@
-import { createSupabaseServerClient, hasSupabaseServerEnv } from "@/lib/supabase/server";
 import { getFitmentEntitlementForCurrentUser } from "@/lib/fitmentEntitlements";
 import Link from "next/link";
 import type { VerifiedBuild } from "@/lib/types";
-import { premiumBuildListSelect, previewBuildListSelect, sanitizeVerifiedBuildPreview } from "@/lib/verifiedBuildAccess";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { hasSupabaseServerEnv } from "@/lib/supabase/server";
+import { mapVerifiedBuildPreview, premiumBuildListSelect, previewBuildListSelect, type VerifiedBuildPreview } from "@/lib/verifiedBuildAccess";
 import { BuildsGrid } from "./BuildsGrid";
 
 export default async function BuildsPage() {
@@ -24,7 +25,7 @@ export default async function BuildsPage() {
     );
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
   const entitlement = await getFitmentEntitlementForCurrentUser();
   const hasPremiumAccess = entitlement.canViewPremiumBuilds;
   const buildsResult = hasPremiumAccess
@@ -34,13 +35,12 @@ export default async function BuildsPage() {
       .eq("published", true)
       .order("created_at", { ascending: false })
     : await supabase
-      .from("verified_builds")
+      .from("verified_build_previews")
       .select(previewBuildListSelect)
-      .eq("published", true)
-      .order("created_at", { ascending: false });
+      .order("year", { ascending: false });
   const builds = hasPremiumAccess
     ? buildsResult.data
-    : (buildsResult.data ?? []).map((build) => sanitizeVerifiedBuildPreview(build as Partial<VerifiedBuild>));
+    : (buildsResult.data ?? []).map((build) => mapVerifiedBuildPreview(build as VerifiedBuildPreview));
 
   return (
     <section className="band">
@@ -63,11 +63,11 @@ export default async function BuildsPage() {
             </div>
           </div>
         ) : null}
-        <p className="risk-definition-note">
+        {hasPremiumAccess ? <p className="risk-definition-note">
           Risk labels are based on real-world clearance needs. Low risk means little to no trimming or rubbing.
           Medium risk usually means some trimming and possible minor rubbing. High risk means the setup needs
           major trimming, custom clearance work, or other modifications to run properly.
-        </p>
+        </p> : null}
         {(builds ?? []).length ? (
           <BuildsGrid builds={builds as unknown as VerifiedBuild[]} locked={!hasPremiumAccess} />
         ) : (

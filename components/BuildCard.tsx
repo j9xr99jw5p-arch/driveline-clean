@@ -12,7 +12,7 @@ import type { VerifiedBuild } from "@/lib/types";
 export function BuildCard({ build, locked = false }: { build: VerifiedBuild; locked?: boolean }) {
   const photo = build.verified_build_photos?.[0];
   const socialHandle = getPublicSocialHandle(build);
-  const title = formatBuildTitle(build);
+  const title = locked ? `${build.year} ${build.make} ${build.model}` : formatBuildTitle(build);
 
   return (
     <Link className="card build-card" href={locked ? "/check" : `/builds/${build.id}`}>
@@ -27,16 +27,28 @@ export function BuildCard({ build, locked = false }: { build: VerifiedBuild; loc
         ) : <span>No photo yet</span>}
       </div>
       <div className="build-body">
-        <span className={`pill ${build.fitment_risk}`}>{build.fitment_risk} risk</span>
         <h3>{title}</h3>
-        <p className="build-combo">{formatWheelTireCombo(build)}</p>
-        <p className="build-suspension">{formatSuspension(build)}</p>
-        <div className="build-secondary">
-          <p>{formatPrimaryFitmentDetails(build)}</p>
-          <p>{formatSecondaryFitmentDetails(build)}</p>
-          {socialHandle ? <p>{socialHandle}</p> : null}
-          {locked ? <p>Unlock full details with premium access</p> : null}
-        </div>
+        {locked ? (
+          <>
+            <div className="locked-build-labels" aria-label="Locked build details">
+              {["Wheel specs", "Tire specs", "Lift", "Rubbing", "Trimming", "Full photo gallery"].map((label) => (
+                <span key={label}>{label}</span>
+              ))}
+            </div>
+            <span className="button primary full build-unlock-button">Unlock full build</span>
+          </>
+        ) : (
+          <>
+            <span className={`pill ${build.fitment_risk}`}>{build.fitment_risk} risk</span>
+            <p className="build-combo">{formatWheelTireCombo(build)}</p>
+            <p className="build-suspension">{formatSuspension(build)}</p>
+            <div className="build-secondary">
+              <p>{formatPrimaryFitmentDetails(build)}</p>
+              <p>{formatSecondaryFitmentDetails(build)}</p>
+              {socialHandle ? <p>{socialHandle}</p> : null}
+            </div>
+          </>
+        )}
       </div>
     </Link>
   );

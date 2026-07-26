@@ -2,11 +2,34 @@ import type { VerifiedBuild } from "@/lib/types";
 
 export const premiumBuildListSelect = "*, verified_build_photos(*)";
 export const previewBuildListSelect =
-  "id, year, make, model, trim, cab, bed, tire_size, wheel_size, lift_height, fitment_risk, published, verified_build_photos(id, build_id, url, alt_text, sort_order)";
+  "id, year, make, model, primary_photo_url, primary_photo_alt_text";
 export const previewBuildDetailSelect =
-  "id, year, make, model, trim, tire_size, wheel_size, lift_height, fitment_risk, published";
+  "id, year, make, model, primary_photo_url, primary_photo_alt_text";
+
+export type VerifiedBuildPreview = {
+  id: string;
+  year: number;
+  make: string;
+  model: string;
+  primary_photo_url: string | null;
+  primary_photo_alt_text: string | null;
+};
 
 export const restrictedVerifiedBuildFields = [
+  "trim",
+  "cab",
+  "bed",
+  "tire_size",
+  "tire_brand",
+  "tire_model",
+  "wheel_size",
+  "wheel_brand",
+  "wheel_model",
+  "wheel_width",
+  "wheel_diameter",
+  "wheel_offset",
+  "lift_height",
+  "fitment_risk",
   "notes",
   "source_url",
   "owner_name",
@@ -28,15 +51,25 @@ export function sanitizeVerifiedBuildPreview(build: Partial<VerifiedBuild>): Par
     year: build.year,
     make: build.make,
     model: build.model,
-    trim: build.trim ?? null,
-    cab: build.cab ?? null,
-    bed: build.bed ?? null,
-    tire_size: build.tire_size,
-    wheel_size: build.wheel_size ?? null,
-    lift_height: build.lift_height ?? null,
-    fitment_risk: build.fitment_risk,
-    published: build.published,
-    verified_build_photos: build.verified_build_photos
+    verified_build_photos: build.verified_build_photos?.slice(0, 1)
+  };
+}
+
+export function mapVerifiedBuildPreview(build: VerifiedBuildPreview): Partial<VerifiedBuild> {
+  return {
+    id: build.id,
+    year: build.year,
+    make: build.make,
+    model: build.model,
+    verified_build_photos: build.primary_photo_url
+      ? [{
+        id: `${build.id}-primary-photo`,
+        build_id: build.id,
+        url: build.primary_photo_url,
+        alt_text: build.primary_photo_alt_text,
+        sort_order: 0
+      }]
+      : []
   };
 }
 

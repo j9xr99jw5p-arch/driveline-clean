@@ -23,12 +23,12 @@ export function BuildsGrid({ builds, locked = false }: { builds: VerifiedBuild[]
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
 
   const options = useMemo(() => ({
-    tires: unique(builds.map((build) => build.tire_size)),
-    lifts: unique(builds.map((build) => formatLift(build.lift_height)).filter(Boolean)),
-    rubbing: unique(builds.map((build) => build.rubbing_severity).filter(Boolean))
-  }), [builds]);
+    tires: locked ? [] : unique(builds.map((build) => build.tire_size)),
+    lifts: locked ? [] : unique(builds.map((build) => formatLift(build.lift_height)).filter(Boolean)),
+    rubbing: locked ? [] : unique(builds.map((build) => build.rubbing_severity).filter(Boolean))
+  }), [builds, locked]);
 
-  const filteredBuilds = useMemo(() => builds.filter((build) => {
+  const filteredBuilds = useMemo(() => locked ? builds : builds.filter((build) => {
     const lift = formatLift(build.lift_height);
     return (
       (filters.risk === "all" || build.fitment_risk === filters.risk) &&
@@ -36,11 +36,11 @@ export function BuildsGrid({ builds, locked = false }: { builds: VerifiedBuild[]
       (filters.lift === "all" || lift === filters.lift) &&
       (filters.rubbing === "all" || build.rubbing_severity === filters.rubbing)
     );
-  }), [builds, filters]);
+  }), [builds, filters, locked]);
 
   return (
     <div className="section-stack">
-      <div className="card filter-panel">
+      {!locked ? <div className="card filter-panel">
         <div>
           <p className="eyebrow">Filter Builds</p>
           <h2>Find a setup close to yours.</h2>
@@ -69,7 +69,7 @@ export function BuildsGrid({ builds, locked = false }: { builds: VerifiedBuild[]
           <span className="muted">{filteredBuilds.length} of {builds.length} builds shown</span>
           <button className="button" type="button" onClick={() => setFilters(defaultFilters)}>Reset</button>
         </div>
-      </div>
+      </div> : null}
 
       {filteredBuilds.length ? (
         <div className="grid three">

@@ -10,6 +10,7 @@ import {
 } from "../lib/verifiedBuildAccess.ts";
 
 const sql = readFileSync(new URL("../supabase/migrations/032_fitment_credit_entitlements.sql", import.meta.url), "utf8");
+const previewSql = readFileSync(new URL("../supabase/migrations/033_verified_build_preview_access.sql", import.meta.url), "utf8");
 const validUserId = "11111111-1111-4111-8111-111111111111";
 const expectedPriceId = "price_expected";
 const entitlementKey = "fitment_two_checks";
@@ -137,6 +138,10 @@ assert.equal(aiResult, "ai_failed_before_consume", "AI failure exits before cons
 assert.equal(aiFailureStore.balance(validUserId), 1, "AI failure does not permanently lose a credit");
 
 assert.equal(previewSelectIsSanitized(), true, "non-premium build selects omit restricted fields");
+assert.match(previewSql, /create or replace view public\.verified_build_previews/i, "restricted verified build preview view exists");
+assert.match(previewSql, /revoke all on table public\.verified_builds from anon/i, "anonymous users cannot select full verified builds table");
+assert.match(previewSql, /revoke all on table public\.verified_builds from authenticated/i, "authenticated clients cannot select full verified builds table directly");
+assert.match(previewSql, /grant select on table public\.verified_build_previews to anon/i, "anonymous users can only read restricted preview view");
 const fullBuild = {
   id: "build_1",
   year: 2024,
