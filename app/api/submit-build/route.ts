@@ -12,7 +12,12 @@ type FitmentRisk = "low" | "medium" | "high";
 
 export async function POST(request: Request) {
   try {
-    const formData = await request.formData();
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch {
+      return NextResponse.json({ error: "Invalid build submission form data." }, { status: 400 });
+    }
 
     const getString = (name: string) => {
       const value = formData.get(name);
@@ -53,6 +58,14 @@ export async function POST(request: Request) {
     const suspensionModel = getString("suspensionModel");
     const lightingUpgrades = getString("lightingUpgrades");
     const favoriteModifications = getString("favoriteModifications");
+    const make = getString("make");
+    const model = getString("model");
+    const liftHeight = getString("liftHeight");
+    const wheelOffset = getString("wheelOffset");
+    const sourceUrl = getString("sourceUrl");
+    const hasAttachment = getString("hasAttachment") === "yes";
+    const trimmingRequired = getString("trimmingRequired");
+    const bodyMountChop = getString("bodyMountChop");
 
     const notes = [
       fitmentNotes && `Fitment notes: ${fitmentNotes}`,
@@ -63,32 +76,44 @@ export async function POST(request: Request) {
       tireModel && `Tire model: ${tireModel}`,
       wheelBrand && `Wheel brand: ${wheelBrand}`,
       wheelModel && `Wheel model: ${wheelModel}`,
+      wheelOffset && toNumberOrNull(wheelOffset) === null && `Wheel offset: ${wheelOffset}`,
+      liftHeight && toNumberOrNull(liftHeight) === null && `Lift height: ${liftHeight}`,
       suspensionType && `Suspension type: ${suspensionType}`,
       suspensionBrand && `Suspension brand: ${suspensionBrand}`,
-      suspensionModel && `Suspension model: ${suspensionModel}`
+      suspensionModel && `Suspension model: ${suspensionModel}`,
+      trimmingRequired && yesNoToBooleanOrNull(trimmingRequired) === null && `Trimming required: ${trimmingRequired}`,
+      bodyMountChop && yesNoToBooleanOrNull(bodyMountChop) === null && `Body mount chop: ${bodyMountChop}`,
+      hasAttachment && "Attachment provided with submission."
     ]
       .filter(Boolean)
       .join("\n\n");
 
     const insertData = {
       year,
-      make: getString("make") || "Toyota",
-      model: getString("model") || "Tacoma",
+      make,
+      model,
       trim: getString("trim") || null,
       cab: getString("cab") || null,
       bed: getString("bed") || null,
       tire_size: getString("tireSize"),
+      tire_brand: tireBrand || null,
+      tire_model: tireModel || null,
       wheel_size: getString("wheelSize"),
-      wheel_offset: toNumberOrNull(getString("wheelOffset")),
-      lift_height: toNumberOrNull(getString("liftHeight")),
+      wheel_brand: wheelBrand || null,
+      wheel_model: wheelModel || null,
+      wheel_offset: toNumberOrNull(wheelOffset),
+      lift_height: toNumberOrNull(liftHeight),
       suspension_setup: getString("suspensionSetup") || null,
+      suspension_brand: suspensionBrand || null,
+      suspension_model: suspensionModel || null,
+      suspension_type: suspensionType || null,
       rubbing_severity: getString("rubbingSeverity") || null,
-      trimming_required: yesNoToBooleanOrNull(getString("trimmingRequired")),
-      body_mount_chop: yesNoToBooleanOrNull(getString("bodyMountChop")),
+      trimming_required: yesNoToBooleanOrNull(trimmingRequired),
+      body_mount_chop: yesNoToBooleanOrNull(bodyMountChop),
       fitment_risk: normalizeRisk(getString("fitmentRisk")),
       lighting_upgrades: lightingUpgrades || null,
       favorite_modifications: favoriteModifications || null,
-      source_url: getString("sourceUrl") || null,
+      source_url: sourceUrl || null,
       notes: notes || null,
       owner_name: socialHandle || "Anonymous",
       published: false
@@ -98,8 +123,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Please enter a valid vehicle year." }, { status: 400 });
     }
 
-    if (!insertData.tire_size || !insertData.wheel_size) {
+    if (!insertData.make || !insertData.model || !insertData.tire_size || !insertData.wheel_size) {
       return NextResponse.json({ error: "Missing required build fields." }, { status: 400 });
+    }
+
+    if (!insertData.source_url && !hasAttachment) {
+      return NextResponse.json({ error: "Please add either a source URL or a photo/file attachment." }, { status: 400 });
     }
 
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -131,7 +160,17 @@ export async function POST(request: Request) {
     let error = insertResult.error;
 
     if (error?.code === "42703" || error?.code === "PGRST204") {
-      const { lighting_upgrades, favorite_modifications, ...fallbackInsertData } = insertData;
+      const fallbackInsertData: Partial<typeof insertData> = { ...insertData };
+      delete fallbackInsertData.lighting_upgrades;
+      delete fallbackInsertData.favorite_modifications;
+      delete fallbackInsertData.tire_brand;
+      delete fallbackInsertData.tire_model;
+      delete fallbackInsertData.wheel_brand;
+      delete fallbackInsertData.wheel_model;
+      delete fallbackInsertData.suspension_brand;
+      delete fallbackInsertData.suspension_model;
+      delete fallbackInsertData.suspension_type;
+
       const fallbackResult = await supabase
         .from("verified_builds")
         .insert(fallbackInsertData)
@@ -204,10 +243,17 @@ async function sendReviewNotification(
     cab: string | null;
     bed: string | null;
     tire_size: string;
+    tire_brand: string | null;
+    tire_model: string | null;
     wheel_size: string;
+    wheel_brand: string | null;
+    wheel_model: string | null;
     wheel_offset: number | null;
     lift_height: number | null;
     suspension_setup: string | null;
+    suspension_brand: string | null;
+    suspension_model: string | null;
+    suspension_type: string | null;
     rubbing_severity: string | null;
     trimming_required: boolean | null;
     body_mount_chop: boolean | null;
@@ -253,10 +299,17 @@ function buildReviewEmailText(
     cab: string | null;
     bed: string | null;
     tire_size: string;
+    tire_brand: string | null;
+    tire_model: string | null;
     wheel_size: string;
+    wheel_brand: string | null;
+    wheel_model: string | null;
     wheel_offset: number | null;
     lift_height: number | null;
     suspension_setup: string | null;
+    suspension_brand: string | null;
+    suspension_model: string | null;
+    suspension_type: string | null;
     rubbing_severity: string | null;
     trimming_required: boolean | null;
     body_mount_chop: boolean | null;
@@ -281,10 +334,17 @@ Bed: ${build.bed ?? "Not provided"}
 
 Fitment:
 Tire size: ${build.tire_size}
+Tire brand: ${build.tire_brand ?? "Unknown"}
+Tire model: ${build.tire_model ?? "Unknown"}
 Wheel size: ${build.wheel_size}
+Wheel brand: ${build.wheel_brand ?? "Unknown"}
+Wheel model: ${build.wheel_model ?? "Unknown"}
 Wheel offset: ${build.wheel_offset ?? "Unknown"}
 Lift height: ${build.lift_height ?? "Unknown"}
 Suspension setup: ${build.suspension_setup ?? "Not provided"}
+Suspension type: ${build.suspension_type ?? "Not provided"}
+Suspension brand: ${build.suspension_brand ?? "Not provided"}
+Suspension model: ${build.suspension_model ?? "Not provided"}
 
 Clearance:
 Rubbing severity: ${build.rubbing_severity ?? "Not provided"}

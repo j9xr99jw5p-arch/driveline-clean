@@ -7,7 +7,7 @@ export default function SubmitBuildPage() {
       <section className="hero">
         <div className="section page-head center">
           <p className="eyebrow">Driveline Builds</p>
-          <h1>Submit Your Tacoma Build</h1>
+          <h1>Submit Your Truck Build</h1>
           <p className="lead">
             Send us your wheel, tire, suspension, and clearance details. If your build is a good fit, we’ll turn it into a clean Driveline build card and add it to the verified builds page.
           </p>

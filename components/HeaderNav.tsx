@@ -2,18 +2,27 @@
 
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-const menuItems = [
-  { href: "/", label: "Home" },
+const primaryItems = [
   { href: "/check", label: "Fitment Checker" },
-  { href: "/builds", label: "Verified Builds" },
+  { href: "/builds", label: "Verified Builds" }
+];
+
+const exploreItems = [
+  { href: "/", label: "Home" },
+  { href: "/submit-build", label: "Submit Build" },
   { href: "/account", label: "Account" }
 ];
 
 export function HeaderNav() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
   const navRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   useEffect(() => {
     function onPointerDown(event: PointerEvent) {
@@ -21,7 +30,10 @@ export function HeaderNav() {
     }
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+        menuButtonRef.current?.focus();
+      }
     }
 
     document.addEventListener("pointerdown", onPointerDown);
@@ -34,11 +46,24 @@ export function HeaderNav() {
 
   return (
     <nav className="nav-links" aria-label="Primary">
+      <div className="nav-primary-tabs">
+        {primaryItems.map((item) => (
+          <Link
+            key={item.href}
+            className="nav-primary-tab"
+            href={item.href}
+            aria-current={isActive(item.href) ? "page" : undefined}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </div>
       <div className="nav-menu" ref={navRef}>
         <button
           aria-expanded={open}
           aria-haspopup="menu"
           className="nav-menu-button"
+          ref={menuButtonRef}
           type="button"
           onClick={() => setOpen((current) => !current)}
         >
@@ -47,8 +72,14 @@ export function HeaderNav() {
         </button>
         {open ? (
           <div className="nav-menu-panel" role="menu">
-            {menuItems.map((item) => (
-              <Link key={item.href} href={item.href} role="menuitem" onClick={() => setOpen(false)}>
+            {exploreItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                role="menuitem"
+                aria-current={isActive(item.href) ? "page" : undefined}
+                onClick={() => setOpen(false)}
+              >
                 {item.label}
               </Link>
             ))}

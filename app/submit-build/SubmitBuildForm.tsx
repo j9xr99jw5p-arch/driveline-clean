@@ -7,13 +7,6 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 const friendlyErrorMessage =
   "We’re having trouble submitting your build right now. We’re working to fix it as quickly as possible. Please try again in a moment.";
 
-const years = Array.from({ length: 18 }, (_, index) => String(2026 - index));
-const trims = ["", "SR", "SR5", "TRD Sport", "TRD Off-Road", "TRD Pro", "Limited", "Trail Edition", "Other"];
-const cabs = ["", "Access Cab", "Double Cab", "Crew Cab", "Other"];
-const beds = ["", "5 foot", "6 foot", "Short bed", "Long bed", "Other"];
-const rubbingOptions = ["", "None", "Minor", "Moderate", "Severe", "Unknown"];
-const yesNoUnknownOptions = ["", "Unknown", "Yes", "No"];
-const riskOptions = ["Unknown", "Low", "Medium", "High"];
 const buildPhotosBucket = process.env.NEXT_PUBLIC_SUPABASE_BUILD_PHOTOS_BUCKET || "verified-build-photos";
 
 type RequiredState = {
@@ -31,9 +24,9 @@ type RequiredState = {
 };
 
 const initialRequiredState: RequiredState = {
-  year: "2024",
-  make: "Toyota",
-  model: "Tacoma",
+  year: "",
+  make: "",
+  model: "",
   socialHandle: "",
   tireSize: "",
   wheelSize: "",
@@ -43,6 +36,8 @@ const initialRequiredState: RequiredState = {
   trimmingRequired: "",
   bodyMountChop: ""
 };
+
+const requiredSourceMessage = "Please add either a source URL or at least one photo/file attachment.";
 
 export function SubmitBuildForm() {
   const router = useRouter();
@@ -83,6 +78,12 @@ export function SubmitBuildForm() {
         .getAll("attachment")
         .filter((value): value is File => value instanceof File && value.size > 0);
       submitData.delete("attachment");
+      submitData.set("hasAttachment", files.length > 0 ? "yes" : "");
+
+      if (!String(submitData.get("sourceUrl") || "").trim() && files.length === 0) {
+        setStatus(requiredSourceMessage);
+        return;
+      }
 
       const response = await fetch("/api/submit-build", {
         method: "POST",
@@ -103,7 +104,7 @@ export function SubmitBuildForm() {
           statusText: response.statusText,
           response: payload
         });
-        throw new Error(response.status >= 500 ? friendlyErrorMessage : payload?.error || payload?.message || "Build submission failed");
+        throw new Error(payload?.error || payload?.message || (response.status >= 500 ? friendlyErrorMessage : "Build submission failed"));
       }
 
       if (payload?.id && files.length > 0) {
@@ -237,16 +238,16 @@ export function SubmitBuildForm() {
 
       <FormSection title="Vehicle Info">
         <div className="grid two">
-          <Select name="year" label="Vehicle year" options={years} value={requiredState.year} onValueChange={updateRequiredField("year")} required />
-          <Field name="make" label="Make" value={requiredState.make} onValueChange={updateRequiredField("make")} required />
+          <Field name="year" label="Vehicle year" placeholder="2024" inputMode="numeric" value={requiredState.year} onValueChange={updateRequiredField("year")} required />
+          <Field name="make" label="Make" placeholder="Toyota, Ford, Chevrolet, Jeep, etc." value={requiredState.make} onValueChange={updateRequiredField("make")} required />
         </div>
         <div className="grid two">
-          <Field name="model" label="Model" value={requiredState.model} onValueChange={updateRequiredField("model")} required />
-          <Select name="trim" label="Trim, if known" options={trims} required={false} />
+          <Field name="model" label="Model" placeholder="Tacoma, F-150, Silverado, Gladiator, etc." value={requiredState.model} onValueChange={updateRequiredField("model")} required />
+          <Field name="trim" label="Trim, if known" placeholder="TRD Off-Road, Rubicon, ZR2, etc." required={false} />
         </div>
         <div className="grid two">
-          <Select name="cab" label="Cab, if known" options={cabs} required={false} />
-          <Select name="bed" label="Bed length, if known" options={beds} required={false} />
+          <Field name="cab" label="Cab, if known" placeholder="Double Cab, Crew Cab, Access Cab, etc." required={false} />
+          <Field name="bed" label="Bed length, if known" placeholder="5 foot, 6 foot, short bed, long bed, etc." required={false} />
         </div>
       </FormSection>
 
@@ -262,13 +263,13 @@ export function SubmitBuildForm() {
         </div>
         <div className="grid two">
           <Field name="wheelSize" label="Wheel size" placeholder="17x8.5" value={requiredState.wheelSize} onValueChange={updateRequiredField("wheelSize")} required />
-          <Field name="wheelOffset" label="Wheel offset, if known" placeholder="-12" type="number" required={false} />
+          <Field name="wheelOffset" label="Wheel offset, if known" placeholder="-12" inputMode="decimal" required={false} />
         </div>
       </FormSection>
 
       <FormSection title="Suspension & Clearance" copy="Add either the lift height or suspension setup. If you know both, include both.">
         <div className="grid two">
-          <Field name="liftHeight" label="Lift height, if known" placeholder="2.5" type="number" step="0.25" value={requiredState.liftHeight} onValueChange={updateRequiredField("liftHeight")} required={false} />
+          <Field name="liftHeight" label="Lift height, if known" placeholder="2.5, leveled, stock, etc." inputMode="decimal" value={requiredState.liftHeight} onValueChange={updateRequiredField("liftHeight")} required={false} />
           <Field name="suspensionType" label="Suspension type, if known" placeholder="Level kit" required={false} />
         </div>
         <div className="grid two">
@@ -276,12 +277,12 @@ export function SubmitBuildForm() {
           <Field name="suspensionModel" label="Suspension model, if known" placeholder="2.5" required={false} />
         </div>
         <Field name="suspensionSetup" label="Suspension setup/details" placeholder="Coilovers, UCAs, rear leafs, spacers, etc." value={requiredState.suspensionSetup} onValueChange={updateRequiredField("suspensionSetup")} required={false} />
-        <Select name="rubbingSeverity" label="How bad is the rubbing?" options={rubbingOptions} value={requiredState.rubbingSeverity} onValueChange={updateRequiredField("rubbingSeverity")} required />
+        <Field name="rubbingSeverity" label="How bad is the rubbing?" placeholder="None, minor, moderate, severe, unknown, etc." value={requiredState.rubbingSeverity} onValueChange={updateRequiredField("rubbingSeverity")} required />
         <div className="grid two">
-          <Select name="trimmingRequired" label="Trimming required?" options={yesNoUnknownOptions} value={requiredState.trimmingRequired} onValueChange={updateRequiredField("trimmingRequired")} required />
-          <Select name="bodyMountChop" label="Body mount chop done?" options={yesNoUnknownOptions} value={requiredState.bodyMountChop} onValueChange={updateRequiredField("bodyMountChop")} required />
+          <Field name="trimmingRequired" label="Trimming required?" placeholder="Yes, no, unknown, liner only, mud flap removed, etc." value={requiredState.trimmingRequired} onValueChange={updateRequiredField("trimmingRequired")} required />
+          <Field name="bodyMountChop" label="Body mount chop done?" placeholder="Yes, no, unknown, not applicable, etc." value={requiredState.bodyMountChop} onValueChange={updateRequiredField("bodyMountChop")} required />
         </div>
-        <Select name="fitmentRisk" label="Fitment risk, if known" options={riskOptions} defaultValue="Unknown" required={false} />
+        <Field name="fitmentRisk" label="Fitment risk, if known" placeholder="Low, medium, high, unknown, etc." required={false} />
         <label className="field">
           <span>Fitment/rubbing notes, optional</span>
           <textarea name="fitmentNotes" placeholder="Describe rubbing, trimming, alignment, wheel spacers, payload, or anything that affects clearance." />
@@ -289,7 +290,8 @@ export function SubmitBuildForm() {
       </FormSection>
 
       <FormSection title="Extra Build Details">
-        <Field name="sourceUrl" label="Source URL, optional" placeholder="https://..." type="url" required={false} />
+        <Field name="sourceUrl" label="Source URL" placeholder="https://..." type="url" required={false} />
+        <p className="fine">Add a source URL or attach a photo/file below so we can verify the submission.</p>
         <label className="field">
           <span>Lighting upgrades, optional</span>
           <textarea name="lightingUpgrades" placeholder="Light bars, pods, ditch lights, fogs, switch panels, wiring, or anything lighting-related." />
@@ -305,11 +307,11 @@ export function SubmitBuildForm() {
         </label>
       </FormSection>
 
-      <FormSection title="Upload File" copy="Photos, screenshots, and spec sheets are helpful if you have them.">
+      <FormSection title="Upload File" copy="Photos, screenshots, and spec sheets are helpful. A source URL or attachment is required.">
         <label className="field">
-          <span>Photo or file attachment, optional</span>
+          <span>Photo or file attachment</span>
           <input name="attachment" type="file" accept="image/*,.pdf,.txt,.doc,.docx" multiple />
-          <small className="fine">Attach screenshots, notes files, spec sheets, or photos if you have them.</small>
+          <small className="fine">Required if you did not add a source URL. Attach screenshots, notes files, spec sheets, or photos.</small>
         </label>
       </FormSection>
 
@@ -341,7 +343,7 @@ function Field(props: React.InputHTMLAttributes<HTMLInputElement> & {
   const { label, required = true, onValueChange, onChange, ...inputProps } = props;
   return (
     <label className="field">
-      <span>{label}</span>
+      <span>{label} <em>{required ? "required" : "optional"}</em></span>
       <input
         {...inputProps}
         required={required}
@@ -350,39 +352,6 @@ function Field(props: React.InputHTMLAttributes<HTMLInputElement> & {
           onChange?.(event);
         }}
       />
-    </label>
-  );
-}
-
-function Select({
-  name,
-  label,
-  options,
-  defaultValue,
-  value,
-  onValueChange,
-  required = true
-}: {
-  name: string;
-  label: string;
-  options: string[];
-  defaultValue?: string;
-  value?: string;
-  onValueChange?: (value: string) => void;
-  required?: boolean;
-}) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      <select
-        name={name}
-        value={value}
-        defaultValue={value === undefined ? defaultValue : undefined}
-        required={required}
-        onChange={(event) => onValueChange?.(event.target.value)}
-      >
-        {options.map((option) => <option key={option || "blank"} value={option}>{option || "Select one"}</option>)}
-      </select>
     </label>
   );
 }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, Database, Search } from "lucide-react";
 import { formatBuildTitle } from "@/lib/buildDisplay";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { VerifiedBuild } from "@/lib/types";
@@ -13,45 +13,144 @@ export default async function HomePage() {
   return (
     <>
       <section className="hero">
-        <div className="section hero-grid">
-          <div>
-            <p className="eyebrow">Toyota Tacoma Fitment Verifier</p>
-            <h1>Stop guessing. Get fitment advice that won’t let you down.</h1>
-            <p className="lead">Enter your Tacoma setup and compare it against a curated verified-build library. Driveline calls out rubbing risk, trimming, body mount chop likelihood, and real-world tradeoffs before you buy parts.</p>
+        <div className="section homepage-hero">
+          <div className="homepage-hero-copy">
+            <p className="eyebrow">Driveline Fitment Data</p>
+            <h1>Know What Fits Before You Buy.</h1>
+            <p className="lead">
+              Check your wheel, tire, and suspension setup, then compare it with real-world trucks that have already run similar fitment.
+            </p>
             <div className="actions">
               <Link className="button primary" href="/check">Check My Fitment <ArrowRight size={18} /></Link>
               <Link className="button" href="/builds">Browse Verified Builds</Link>
             </div>
-          </div>
-          <div className="hero-visual">
-            {featuredBuild && featuredPhoto ? (
-              <article className="featured-build-card">
-                <div className="featured-build-image">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={featuredPhoto.url} alt={featuredPhoto.alt_text ?? formatBuildTitle(featuredBuild)} />
-                </div>
-                <div className="featured-build-copy">
-                  <p className="eyebrow">Featured Build of the Day</p>
-                  <h2>{formatBuildTitle(featuredBuild)}</h2>
-                  <Link className="button primary full" href={`/builds/${featuredBuild.id}`}>View Full Build</Link>
-                </div>
-              </article>
-            ) : (
-              <div className="spec-panel" style={{ width: "min(440px, 100%)" }}>
-                <p className="eyebrow">Featured Build of the Day</p>
-                <h2>Verified builds are loading in.</h2>
-                <p className="muted">Once published builds with photos are available, this space will rotate through one build each day.</p>
-                <Link className="button primary full" href="/builds">Browse Verified Builds</Link>
-              </div>
-            )}
+            <p className="fine homepage-hero-note">Built from real setups, owner reports, and fitment data.</p>
           </div>
         </div>
       </section>
+
       <section className="band alt">
-        <div className="section grid three">
-          <div className="card feature-card"><ShieldCheck size={24} /><h3>Honest assessments</h3><p className="muted">See rubbing, trimming, clearance, and drivability warnings before money leaves your account.</p></div>
-          <div className="card feature-card"><CheckCircle2 size={24} /><h3>Verified build data</h3><p className="muted">Browse real Tacoma setups with tire, wheel, lift, rubbing, and owner/source details.</p></div>
-          <div className="card feature-card"><ArrowRight size={24} /><h3>No clutter</h3><p className="muted">Focused on fitment checks and verified builds so the main path stays simple.</p></div>
+        <div className="section">
+          <div className="page-head center">
+            <p className="eyebrow">Core Tools</p>
+            <h2>Two ways to make a smarter fitment decision.</h2>
+          </div>
+          <div className="homepage-tool-grid">
+            <article className="card homepage-tool-card">
+              <div className="homepage-tool-icon"><Search size={24} /></div>
+              <h3>Fitment Checker</h3>
+              <p className="muted">
+                Enter your truck, wheel, tire, offset, and suspension information to receive a practical fitment risk assessment.
+              </p>
+              <ul className="homepage-check-list">
+                <li>Wheel and tire compatibility</li>
+                <li>Rubbing and clearance risk</li>
+                <li>Likely trimming or body-mount modifications</li>
+                <li>Practical setup recommendations</li>
+              </ul>
+              <Link className="button primary full" href="/check">Run a Fitment Check</Link>
+            </article>
+
+            <article className="card homepage-tool-card">
+              <div className="homepage-tool-icon"><Database size={24} /></div>
+              <h3>Verified Builds</h3>
+              <p className="muted">
+                Browse real truck setups with documented wheel specs, tire sizes, suspension details, rubbing reports, trimming notes, and photos.
+              </p>
+              <ul className="homepage-check-list">
+                <li>Real-world truck configurations</li>
+                <li>Owner- and shop-reported fitment notes</li>
+                <li>Photos of completed setups</li>
+                <li>Searchable comparison data</li>
+              </ul>
+              <Link className="button primary full" href="/builds">Explore Verified Builds</Link>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section className="band">
+        <div className="section">
+          <div className="page-head center">
+            <p className="eyebrow">How It Works</p>
+            <h2>From setup idea to real-world comparison.</h2>
+          </div>
+          <div className="homepage-steps" aria-label="How Driveline works">
+            <article className="homepage-step">
+              <span>1</span>
+              <h3>Enter your setup</h3>
+              <p className="muted">Add the truck, tire size, wheel size, offset, lift height, and clearance details you know.</p>
+            </article>
+            <article className="homepage-step">
+              <span>2</span>
+              <h3>Review the fitment report</h3>
+              <p className="muted">See rubbing risk, likely clearance work, and setup notes before you commit.</p>
+            </article>
+            <article className="homepage-step">
+              <span>3</span>
+              <h3>Compare it with real builds</h3>
+              <p className="muted">Use verified trucks to understand what owners actually ran and what changed.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section className="band alt">
+        <div className="section homepage-data-section">
+          <div className="homepage-data-copy">
+            <p className="eyebrow">Verified Build Data</p>
+            <h2>Fitment Data From Trucks That Actually Exist</h2>
+            <p className="lead">
+              Online fitment advice is often based on guesses, incomplete forum posts, or ideal measurements. Driveline organizes real setups so you can see what owners actually ran, what rubbed, and what modifications were required.
+            </p>
+            <Link className="button primary" href="/builds">See Real Setups</Link>
+          </div>
+
+          {featuredBuild && featuredPhoto ? (
+            <article className="featured-build-card homepage-featured-build">
+              <div className="featured-build-image">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={featuredPhoto.url} alt={featuredPhoto.alt_text ?? formatBuildTitle(featuredBuild)} />
+              </div>
+              <div className="featured-build-copy">
+                <p className="eyebrow">Published Build</p>
+                <h3>{formatBuildTitle(featuredBuild)}</h3>
+                <Link className="button full" href={`/builds/${featuredBuild.id}`}>View Build Details</Link>
+              </div>
+            </article>
+          ) : (
+            <div className="spec-panel homepage-featured-build">
+              <p className="eyebrow">Published Builds</p>
+              <h3>Verified builds are loading in.</h3>
+              <p className="muted">Once published builds with photos are available, this space will show one real setup.</p>
+              <Link className="button full" href="/builds">Browse Verified Builds</Link>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="band">
+        <div className="section homepage-contribute">
+          <div>
+            <p className="eyebrow">Contribute Fitment Data</p>
+            <h2>Help Build the Fitment Database</h2>
+            <p className="lead">
+              Submit your truck’s wheel, tire, suspension, rubbing, and trimming details so other owners can learn from a setup that has already been tested.
+            </p>
+            <p className="muted">Shops can contribute completed customer builds and receive access to the growing fitment database.</p>
+          </div>
+          <Link className="button primary" href="/submit-build">Submit Your Build</Link>
+        </div>
+      </section>
+
+      <section className="band alt homepage-final-cta">
+        <div className="section page-head center">
+          <p className="eyebrow">Start Here</p>
+          <h2>Check the Setup Before You Spend the Money.</h2>
+          <div className="actions">
+            <Link className="button primary" href="/check">Check My Fitment <CheckCircle2 size={18} /></Link>
+            <Link className="button" href="/builds">Browse Real Builds</Link>
+          </div>
         </div>
       </section>
     </>
