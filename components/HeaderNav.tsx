@@ -1,18 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-const primaryItems = [
+const menuItems = [
   { href: "/check", label: "Fitment Checker" },
-  { href: "/builds", label: "Verified Builds" }
-];
-
-const exploreItems = [
-  { href: "/", label: "Home" },
-  { href: "/submit-build", label: "Submit Build" },
+  { href: "/builds", label: "Verified Builds" },
+  { href: "/submit-build", label: "Get Verified" },
   { href: "/account", label: "Account" }
 ];
 
@@ -46,33 +41,23 @@ export function HeaderNav() {
 
   return (
     <nav className="nav-links" aria-label="Primary">
-      <div className="nav-primary-tabs">
-        {primaryItems.map((item) => (
-          <Link
-            key={item.href}
-            className="nav-primary-tab"
-            href={item.href}
-            aria-current={isActive(item.href) ? "page" : undefined}
-          >
-            {item.label}
-          </Link>
-        ))}
-      </div>
       <div className="nav-menu" ref={navRef}>
         <button
           aria-expanded={open}
           aria-haspopup="menu"
-          className="nav-menu-button"
+          aria-label="Navigation menu"
+          className="nav-hamburger"
           ref={menuButtonRef}
           type="button"
           onClick={() => setOpen((current) => !current)}
         >
-          {open ? <X size={18} /> : <Menu size={18} />}
-          Explore
+          <span className="nav-hamburger-line" />
+          <span className="nav-hamburger-line" />
+          <span className="nav-hamburger-line" />
         </button>
         {open ? (
           <div className="nav-menu-panel" role="menu">
-            {exploreItems.map((item) => (
+            {menuItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
