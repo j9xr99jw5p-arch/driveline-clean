@@ -535,9 +535,9 @@ p {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 4.5rem;
-  padding: 5rem 0 6rem;
-  max-width: 760px;
+  gap: 3.75rem;
+  padding: 4.5rem 0 5.5rem;
+  max-width: 1060px;
 }
 
 .homepage-intro {
@@ -561,18 +561,31 @@ p {
   line-height: 1.7;
 }
 
-.homepage-build-of-day,
-.homepage-verified-cta {
+.homepage-showcase {
   display: grid;
-  justify-items: center;
-  gap: 1.5rem;
+  grid-template-columns: minmax(0, 0.9fr) minmax(260px, 1fr);
+  align-items: center;
+  gap: 2.75rem;
+  width: 100%;
+}
+
+.homepage-build-of-day {
+  display: grid;
+  gap: 0.9rem;
+  width: 100%;
+  text-align: left;
+}
+
+.homepage-actions {
+  display: grid;
+  gap: 0.85rem;
   width: 100%;
 }
 
 .homepage-section-label {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 500;
   letter-spacing: 0.16em;
 }
@@ -600,13 +613,16 @@ p {
 .homepage-build-photo-empty {
   display: grid;
   place-items: center;
-  min-height: 280px;
+  aspect-ratio: auto;
+  min-height: 220px;
   color: var(--text-muted);
   font-size: 0.9rem;
 }
 
 .homepage-cta {
-  min-width: 220px;
+  width: 100%;
+  min-height: 56px;
+  font-size: 1.02rem;
 }
 
 .homepage-minimal .button:hover,
@@ -1161,8 +1177,23 @@ p {
   .homepage-tool-grid,
   .homepage-steps,
   .homepage-data-section,
-  .homepage-contribute {
+  .homepage-contribute,
+  .homepage-showcase {
     grid-template-columns: 1fr;
+  }
+
+  .homepage-showcase {
+    gap: 2rem;
+    justify-items: center;
+  }
+
+  .homepage-build-of-day {
+    justify-items: center;
+    text-align: center;
+  }
+
+  .homepage-actions {
+    max-width: 420px;
   }
 
   .hero {
@@ -1283,8 +1314,8 @@ p {
   }
 
   .homepage-cta {
-    width: 100%;
-    max-width: 320px;
+    min-height: 52px;
+    font-size: 1rem;
   }
 }
 

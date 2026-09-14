@@ -31,33 +31,37 @@ export default async function HomePage() {
         </p>
       </section>
 
-      <section className="homepage-build-of-day" aria-labelledby="build-of-the-day-label">
-        <p className="homepage-section-label" id="build-of-the-day-label">
-          BUILD OF THE DAY
-        </p>
+      <section className="homepage-showcase">
+        <div className="homepage-build-of-day" aria-labelledby="build-of-the-day-label">
+          <p className="homepage-section-label" id="build-of-the-day-label">
+            BUILD OF THE DAY
+          </p>
 
-        {featuredBuild && featuredPhoto ? (
-          <Link className="homepage-build-photo-link" href={`/builds/${featuredBuild.id}`}>
-            <div className="homepage-build-photo">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={featuredPhoto.url} alt={featuredAlt} />
+          {featuredBuild && featuredPhoto ? (
+            <Link className="homepage-build-photo-link" href={`/builds/${featuredBuild.id}`}>
+              <div className="homepage-build-photo">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={featuredPhoto.url} alt={featuredAlt} />
+              </div>
+            </Link>
+          ) : (
+            <div className="homepage-build-photo homepage-build-photo-empty">
+              <span>Build photo coming soon</span>
             </div>
+          )}
+        </div>
+
+        <div className="homepage-actions">
+          <Link className="button homepage-cta" href="/builds">
+            Browse Builds
           </Link>
-        ) : (
-          <div className="homepage-build-photo homepage-build-photo-empty">
-            <span>Build photo coming soon</span>
-          </div>
-        )}
-
-        <Link className="button homepage-cta" href="/builds">
-          Browse Builds
-        </Link>
-      </section>
-
-      <section className="homepage-verified-cta">
-        <Link className="button homepage-cta" href="/submit-build">
-          Get Verified by Driveline
-        </Link>
+          <Link className="button homepage-cta" href="/submit-build">
+            Get Verified by Driveline
+          </Link>
+          <Link className="button homepage-cta" href="/check">
+            Fitment Checker
+          </Link>
+        </div>
       </section>
     </div>
   );
