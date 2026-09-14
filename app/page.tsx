@@ -25,9 +25,9 @@ export default async function HomePage() {
   return (
     <div className="section homepage-minimal">
       <section className="homepage-intro">
-        <h1>Your truck. Verified.</h1>
+        <h1>Build with Confidence</h1>
         <p className="homepage-tagline">
-          Driveline helps truck owners make smarter build decisions through real-world fitment data and verified builds.
+          Use our fitment guidance tool to make smarter decisions when building your truck. Backed by real build setups to help you make better choices for your next build
         </p>
       </section>
 
