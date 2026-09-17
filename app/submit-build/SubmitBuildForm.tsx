@@ -39,7 +39,12 @@ export function SubmitBuildForm() {
   const [customMake, setCustomMake] = useState("");
   const [model, setModel] = useState("");
   const [customModel, setCustomModel] = useState("");
+  const [wheelSetup, setWheelSetup] = useState("");
+  const [tireSetup, setTireSetup] = useState("");
+  const [suspensionSetup, setSuspensionSetup] = useState("");
   const [description, setDescription] = useState("");
+  const [fitmentNotes, setFitmentNotes] = useState("");
+  const [favoriteModification, setFavoriteModification] = useState("");
 
   const isCustomMake = make === otherOption;
   const modelChoices = isCustomMake ? [] : modelsByMake[make] ?? [];
@@ -49,8 +54,16 @@ export function SubmitBuildForm() {
   const resolvedModel = isCustomModel ? customModel.trim() : model;
 
   const canSubmit = useMemo(() => {
-    return Boolean(year && resolvedMake && resolvedModel && description.trim());
-  }, [year, resolvedMake, resolvedModel, description]);
+    return Boolean(
+      year &&
+      resolvedMake &&
+      resolvedModel &&
+      wheelSetup.trim() &&
+      tireSetup.trim() &&
+      suspensionSetup.trim() &&
+      fitmentNotes.trim()
+    );
+  }, [year, resolvedMake, resolvedModel, wheelSetup, tireSetup, suspensionSetup, fitmentNotes]);
 
   function onMakeChange(value: string) {
     setMake(value);
@@ -64,7 +77,7 @@ export function SubmitBuildForm() {
     const form = event.currentTarget;
 
     if (!canSubmit) {
-      setStatus("Please choose your year, make, and model, then tell us about your build.");
+      setStatus("Please choose your year, make, and model, then fill in your wheel, tire, and suspension setup and how you made it fit.");
       return;
     }
 
@@ -287,14 +300,72 @@ export function SubmitBuildForm() {
       </label>
 
       <label className="field">
-        <span>Tell us about your build</span>
+        <span>Wheel setup</span>
+        <textarea
+          name="wheelSetup"
+          className="verify-spec"
+          placeholder="Brand, model, size, offset or backspacing. Example: RRW RR7-H, 17x8.5, -10 offset."
+          value={wheelSetup}
+          onChange={(event) => setWheelSetup(event.target.value)}
+          required
+        />
+      </label>
+
+      <label className="field">
+        <span>Tire setup</span>
+        <textarea
+          name="tireSetup"
+          className="verify-spec"
+          placeholder="Brand, model, and size. Example: BFGoodrich KO2, 285/70R17."
+          value={tireSetup}
+          onChange={(event) => setTireSetup(event.target.value)}
+          required
+        />
+      </label>
+
+      <label className="field">
+        <span>Suspension setup</span>
+        <textarea
+          name="suspensionSetup"
+          className="verify-spec"
+          placeholder="Lift or leveling height, brand, and components. Example: 3 in Bilstein 6112 front, 5100 rear with add-a-leaf."
+          value={suspensionSetup}
+          onChange={(event) => setSuspensionSetup(event.target.value)}
+          required
+        />
+      </label>
+
+      <label className="field">
+        <span>Tell us more about your build</span>
         <textarea
           name="buildDescription"
           className="verify-description"
-          placeholder="Wheels, tires, suspension, any rubbing or trimming, and anything else worth knowing about your setup."
+          placeholder="Any other modifications: bumpers, armor, lighting, wheel spacers, gearing, or anything else worth knowing."
           value={description}
           onChange={(event) => setDescription(event.target.value)}
+        />
+      </label>
+
+      <label className="field">
+        <span>How did you make it fit?</span>
+        <textarea
+          name="fitmentNotes"
+          className="verify-note"
+          placeholder="Any trimming, cutting, body mount chop, crash bar removal, or other custom work. If it bolted on with no modifications, just say so."
+          value={fitmentNotes}
+          onChange={(event) => setFitmentNotes(event.target.value)}
           required
+        />
+      </label>
+
+      <label className="field">
+        <span>Favorite modification</span>
+        <textarea
+          name="favoriteModifications"
+          className="verify-note"
+          placeholder="The one change that made the biggest difference in looks, ride quality, or capability, and why."
+          value={favoriteModification}
+          onChange={(event) => setFavoriteModification(event.target.value)}
         />
       </label>
 

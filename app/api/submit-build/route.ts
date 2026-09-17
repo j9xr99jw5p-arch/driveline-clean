@@ -62,6 +62,9 @@ export async function POST(request: Request) {
     const suspensionType = getString("suspensionType");
     const suspensionBrand = getString("suspensionBrand");
     const suspensionModel = getString("suspensionModel");
+    const wheelSetup = getString("wheelSetup");
+    const tireSetup = getString("tireSetup");
+    const suspensionSetup = getString("suspensionSetup");
     const lightingUpgrades = getString("lightingUpgrades");
     const favoriteModifications = getString("favoriteModifications");
     const make = getString("make");
@@ -74,11 +77,12 @@ export async function POST(request: Request) {
     const bodyMountChop = getString("bodyMountChop");
 
     const notes = [
-      buildDescription && `Build description: ${buildDescription}`,
-      fitmentNotes && `Fitment notes: ${fitmentNotes}`,
+      wheelSetup && `Wheel setup: ${wheelSetup}`,
+      tireSetup && `Tire setup: ${tireSetup}`,
+      buildDescription && `Other modifications: ${buildDescription}`,
+      fitmentNotes && `How it was made to fit: ${fitmentNotes}`,
       fullBuildList && `Full build list: ${fullBuildList}`,
       lightingUpgrades && `Lighting upgrades: ${lightingUpgrades}`,
-      favoriteModifications && `Favorite modifications / recommendations: ${favoriteModifications}`,
       tireBrand && `Tire brand: ${tireBrand}`,
       tireModel && `Tire model: ${tireModel}`,
       wheelBrand && `Wheel brand: ${wheelBrand}`,
@@ -110,7 +114,7 @@ export async function POST(request: Request) {
       wheel_model: wheelModel || null,
       wheel_offset: toNumberOrNull(wheelOffset),
       lift_height: toNumberOrNull(liftHeight),
-      suspension_setup: getString("suspensionSetup") || null,
+      suspension_setup: suspensionSetup || null,
       suspension_brand: suspensionBrand || null,
       suspension_model: suspensionModel || null,
       suspension_type: suspensionType || null,
@@ -132,6 +136,17 @@ export async function POST(request: Request) {
 
     if (!insertData.make || !insertData.model) {
       return NextResponse.json({ error: "Please choose your vehicle make and model." }, { status: 400 });
+    }
+
+    if (!wheelSetup || !tireSetup || !suspensionSetup) {
+      return NextResponse.json(
+        { error: "Please describe your wheel, tire, and suspension setup." },
+        { status: 400 }
+      );
+    }
+
+    if (!fitmentNotes) {
+      return NextResponse.json({ error: "Please tell us how you made your setup fit." }, { status: 400 });
     }
 
     if (!hasAttachment) {

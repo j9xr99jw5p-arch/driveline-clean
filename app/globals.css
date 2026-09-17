@@ -702,6 +702,14 @@ p {
   gap: 1rem;
 }
 
+.verify-form .field textarea.verify-spec {
+  min-height: 84px;
+}
+
+.verify-form .field textarea.verify-note {
+  min-height: 130px;
+}
+
 .verify-form .field textarea.verify-description {
   min-height: 190px;
 }
@@ -1419,6 +1427,10 @@ p {
 
   .verify-tagline {
     font-size: 1rem;
+  }
+
+  .verify-form .field textarea.verify-note {
+    min-height: 120px;
   }
 
   .verify-form .field textarea.verify-description {
