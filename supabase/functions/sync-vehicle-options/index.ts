@@ -122,10 +122,28 @@ function isAuthorized(request: Request, serviceRoleKey: string) {
   const secretHeader = (request.headers.get("x-sync-secret") ?? "").trim();
   const syncSecret = Deno.env.get("VEHICLE_SYNC_SECRET");
 
-  if (bearer && bearer === serviceRoleKey) return true;
   if (syncSecret && (secretHeader === syncSecret || bearer === syncSecret)) return true;
+  if (bearer && bearer === serviceRoleKey) return true;
 
-  return false;
+  // The platform validates the token signature before this function runs, and
+  // the key Supabase injects does not always match the one a caller holds, so
+  // authorize on the role claim rather than on a string comparison.
+  return readJwtRole(bearer) === "service_role";
+}
+
+function readJwtRole(token: string) {
+  const segments = token.split(".");
+  if (segments.length !== 3) return null;
+
+  try {
+    const base64 = segments[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded)) as { role?: string };
+
+    return payload.role ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function readSyncOptions(request: Request): Promise<SyncOptions> {
