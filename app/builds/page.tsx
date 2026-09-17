@@ -12,7 +12,7 @@ export default async function BuildsPage() {
         <div className="section">
           <div className="page-head center">
             <p className="eyebrow">Driveline Verified Builds</p>
-            <h1>Verified Tacoma Builds</h1>
+            <h1>Verified Builds</h1>
             <p className="lead">Something went wrong while loading this page. We’re working to fix it. Please refresh or try again shortly.</p>
           </div>
           <div className="card" style={{ maxWidth: 720, margin: "0 auto", textAlign: "center" }}>
@@ -46,10 +46,10 @@ export default async function BuildsPage() {
       <div className="section">
         <div className="page-head center">
           <p className="eyebrow">Driveline Verified Builds</p>
-          <h1>Verified Tacoma Builds</h1>
+          <h1>Verified Builds</h1>
           <p className="lead">{hasPremiumAccess
-            ? "Review real-world Tacoma wheel, tire, lift, rubbing, trimming, and drivability outcomes from published builds."
-            : "Preview real-world Tacoma builds."}</p>
+            ? "Review real-world wheel, tire, lift, rubbing, trimming, and drivability outcomes from published truck builds."
+            : "Preview real-world truck builds."}</p>
         </div>
         {hasPremiumAccess ? <p className="risk-definition-note">
           Risk labels are based on real-world clearance needs. Low risk means little to no trimming or rubbing.

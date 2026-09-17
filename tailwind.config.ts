@@ -4,15 +4,15 @@ const config = {
     extend: {
       colors: {
         driveline: {
-          bg: "#050608",
-          panel: "#0f1218",
-          raised: "#181c24",
-          border: "#2a3140",
-          text: "#e8eaed",
-          muted: "#9ca3af",
-          blue: "#1e3a5f",
-          blueLight: "#2a4d7a",
-          blueMuted: "#162538"
+          bg: "#060606",
+          panel: "#121212",
+          raised: "#1c1c1c",
+          border: "#2e2e2e",
+          text: "#e8e8e8",
+          muted: "#9e9e9e",
+          accent: "#f5f5f5",
+          accentText: "#d4d4d4",
+          accentSoft: "#262626"
         }
       },
       borderRadius: {

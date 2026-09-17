@@ -26,7 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main className="main">{children}</main>
           <footer className="footer">
             <div className="section">
-              <p>&copy; 2026 Driveline Auto. Built for Tacoma owners, by Tacoma owners.</p>
+              <p>&copy; 2026 Driveline Auto. Built for truck owners, by truck owners.</p>
             </div>
           </footer>
         </div>
