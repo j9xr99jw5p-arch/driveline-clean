@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { emptyVehicleOptions, vehicleOptionsKey, type VehicleOptions } from "@/lib/vehicleOptions";
 
 const friendlyErrorMessage =
   "We’re having trouble submitting your build right now. We’re working to fix it as quickly as possible. Please try again in a moment.";
@@ -16,9 +17,14 @@ const otherOption = "Other";
 const earliestYear = 1995;
 const latestYear = Math.min(new Date().getFullYear() + 1, 2035);
 
-const yearOptions = Array.from({ length: latestYear - earliestYear + 1 }, (_, index) => String(latestYear - index));
+const fallbackYearOptions = Array.from(
+  { length: latestYear - earliestYear + 1 },
+  (_, index) => String(latestYear - index)
+);
 
-const modelsByMake: Record<string, string[]> = {
+// Used when the vehicle reference cache is empty or unreachable, so the form
+// always offers a usable set of options.
+const fallbackModelsByMake: Record<string, string[]> = {
   Toyota: ["Tacoma", "Tundra", "4Runner", "Sequoia", "Land Cruiser"],
   Ford: ["F-150", "F-250", "F-350", "Ranger", "Bronco", "Maverick"],
   Chevrolet: ["Silverado 1500", "Silverado 2500HD", "Silverado 3500HD", "Colorado", "Tahoe", "Suburban"],
@@ -28,9 +34,7 @@ const modelsByMake: Record<string, string[]> = {
   Nissan: ["Frontier", "Titan", "Titan XD", "Xterra"]
 };
 
-const makeOptions = [...Object.keys(modelsByMake), otherOption];
-
-export function SubmitBuildForm() {
+export function SubmitBuildForm({ vehicleOptions = emptyVehicleOptions }: { vehicleOptions?: VehicleOptions }) {
   const router = useRouter();
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -46,8 +50,33 @@ export function SubmitBuildForm() {
   const [fitmentNotes, setFitmentNotes] = useState("");
   const [favoriteModification, setFavoriteModification] = useState("");
 
+  const usesReferenceData = vehicleOptions.years.length > 0;
+
+  const yearOptions = useMemo(
+    () => (usesReferenceData ? vehicleOptions.years.map(String) : fallbackYearOptions),
+    [usesReferenceData, vehicleOptions.years]
+  );
+
+  const makeOptions = useMemo(() => {
+    const available = usesReferenceData
+      ? year
+        ? vehicleOptions.makesByYear[year] ?? []
+        : []
+      : Object.keys(fallbackModelsByMake);
+
+    return [...available, otherOption];
+  }, [usesReferenceData, vehicleOptions.makesByYear, year]);
+
   const isCustomMake = make === otherOption;
-  const modelChoices = isCustomMake ? [] : modelsByMake[make] ?? [];
+
+  const modelChoices = useMemo(() => {
+    if (isCustomMake) return [];
+
+    return usesReferenceData
+      ? vehicleOptions.modelsByYearMake[vehicleOptionsKey(year, make)] ?? []
+      : fallbackModelsByMake[make] ?? [];
+  }, [isCustomMake, usesReferenceData, vehicleOptions.modelsByYearMake, year, make]);
+
   const isCustomModel = isCustomMake || model === otherOption;
 
   const resolvedMake = isCustomMake ? customMake.trim() : make;
@@ -64,6 +93,19 @@ export function SubmitBuildForm() {
       fitmentNotes.trim()
     );
   }, [year, resolvedMake, resolvedModel, wheelSetup, tireSetup, suspensionSetup, fitmentNotes]);
+
+  function onYearChange(value: string) {
+    setYear(value);
+
+    // Available makes depend on the year in the reference data, so a year
+    // change can leave a previously chosen make with no matching models.
+    if (usesReferenceData) {
+      setMake("");
+      setCustomMake("");
+      setModel("");
+      setCustomModel("");
+    }
+  }
 
   function onMakeChange(value: string) {
     setMake(value);
@@ -242,7 +284,7 @@ export function SubmitBuildForm() {
       <div className="verify-vehicle-grid">
         <label className="field">
           <span>Year</span>
-          <select name="year" value={year} onChange={(event) => setYear(event.target.value)} required>
+          <select name="year" value={year} onChange={(event) => onYearChange(event.target.value)} required>
             <option value="">Select year</option>
             {yearOptions.map((option) => (
               <option key={option} value={option}>
@@ -254,8 +296,13 @@ export function SubmitBuildForm() {
 
         <label className="field">
           <span>Make</span>
-          <select value={make} onChange={(event) => onMakeChange(event.target.value)} required>
-            <option value="">Select make</option>
+          <select
+            value={make}
+            onChange={(event) => onMakeChange(event.target.value)}
+            disabled={usesReferenceData && !year}
+            required
+          >
+            <option value="">{usesReferenceData && !year ? "Select a year first" : "Select make"}</option>
             {makeOptions.map((option) => (
               <option key={option} value={option}>
                 {option}

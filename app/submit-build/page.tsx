@@ -1,6 +1,13 @@
+import { getVehicleOptions } from "@/lib/vehicleOptions.server";
 import { SubmitBuildForm } from "./SubmitBuildForm";
 
-export default function SubmitBuildPage() {
+// Vehicle reference data changes only when the sync-vehicle-options function
+// runs, so the rendered page can be cached for a day.
+export const revalidate = 86400;
+
+export default async function SubmitBuildPage() {
+  const vehicleOptions = await getVehicleOptions();
+
   return (
     <div className="section verify-page">
       <section className="verify-intro">
@@ -10,7 +17,7 @@ export default function SubmitBuildPage() {
         </p>
       </section>
 
-      <SubmitBuildForm />
+      <SubmitBuildForm vehicleOptions={vehicleOptions} />
     </div>
   );
 }
