@@ -17,10 +17,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="shell">
           <header className="nav">
             <div className="nav-inner">
-              <Link className="brand brand-logo-only" href="/" aria-label="Driveline Auto home">
-                <span className="brand-mark" aria-hidden="true">
-                  D
-                </span>
+              <Link className="brand" href="/" aria-label="Driveline Auto home">
+                <span className="brand-wordmark">Driveline Auto</span>
               </Link>
               <HeaderNav />
             </div>

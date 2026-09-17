@@ -4,6 +4,8 @@ import { previewBuildListSelect, type VerifiedBuildPreview } from "@/lib/verifie
 
 export const dynamic = "force-dynamic";
 
+const currentSupabaseHost = getSupabaseHost();
+
 type FeaturedBuildPreview = {
   id: string;
   year: number;
@@ -90,7 +92,7 @@ async function getFeaturedBuildOfTheDay(): Promise<FeaturedBuildPreview | null> 
           ? [{ url: build.primary_photo_url, alt_text: build.primary_photo_alt_text }]
           : []
       }))
-      .filter((build) => (build.verified_build_photos ?? []).length > 0);
+      .filter((build) => (build.verified_build_photos ?? []).some((photo) => isServablePhotoUrl(photo.url)));
 
     if (!buildsWithPhotos.length) return null;
 
@@ -99,5 +101,26 @@ async function getFeaturedBuildOfTheDay(): Promise<FeaturedBuildPreview | null> 
   } catch (error) {
     console.error("Homepage featured build failed:", error);
     return null;
+  }
+}
+
+function getSupabaseHost() {
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    return url ? new URL(url).host : null;
+  } catch {
+    return null;
+  }
+}
+
+// Some older build rows still point at a retired Supabase project, which no
+// longer serves images. Skip those so the featured slot never renders broken.
+function isServablePhotoUrl(url: string) {
+  try {
+    const { host } = new URL(url);
+    if (!host.endsWith(".supabase.co")) return true;
+    return !currentSupabaseHost || host === currentSupabaseHost;
+  } catch {
+    return false;
   }
 }
