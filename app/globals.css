@@ -632,6 +632,115 @@ p {
   outline: none;
 }
 
+.verify-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.75rem;
+  padding: 4.5rem 0 5.5rem;
+  max-width: 620px;
+}
+
+.verify-intro {
+  display: grid;
+  gap: 1.1rem;
+  text-align: center;
+}
+
+.verify-intro h1 {
+  margin: 0;
+  font-size: clamp(1.9rem, 4.6vw, 2.5rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.14;
+}
+
+.verify-tagline {
+  margin: 0 auto;
+  max-width: 500px;
+  color: var(--text-muted);
+  font-size: 1.02rem;
+  line-height: 1.7;
+}
+
+.verify-form {
+  display: grid;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.verify-form .field {
+  gap: 0.55rem;
+  font-weight: 400;
+}
+
+.verify-form .field > span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.verify-form .field input,
+.verify-form .field select,
+.verify-form .field textarea {
+  min-height: 48px;
+  padding: 0.75rem 0.85rem;
+  background-color: var(--bg-secondary);
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+.verify-form .field input:focus,
+.verify-form .field select:focus,
+.verify-form .field textarea:focus {
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
+.verify-form .field select:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.verify-form .field input[type="file"] {
+  padding: 0.7rem 0.85rem;
+  color: var(--text-secondary);
+}
+
+.verify-vehicle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.verify-contact {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.verify-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.verify-description {
+  min-height: 190px;
+}
+
+.verify-submit {
+  width: 100%;
+  min-height: 56px;
+  margin-top: 0.25rem;
+  font-size: 1.02rem;
+}
+
+.verify-page .button:hover,
+.verify-page .button:focus-visible {
+  background-color: rgba(148, 163, 184, 0.08);
+  border-color: rgba(148, 163, 184, 0.35);
+  outline: none;
+}
+
 .actions {
   display: flex;
   justify-content: center;
@@ -1316,6 +1425,24 @@ p {
   .homepage-cta {
     min-height: 52px;
     font-size: 1rem;
+  }
+
+  .verify-page {
+    gap: 2.25rem;
+    padding: 2.5rem 0 4rem;
+  }
+
+  .verify-vehicle-grid,
+  .verify-contact-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .verify-tagline {
+    font-size: 1rem;
+  }
+
+  .verify-description {
+    min-height: 160px;
   }
 }
 

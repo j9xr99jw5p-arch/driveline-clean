@@ -9,63 +9,62 @@ const friendlyErrorMessage =
 
 const buildPhotosBucket = process.env.NEXT_PUBLIC_SUPABASE_BUILD_PHOTOS_BUCKET || "verified-build-photos";
 
-type RequiredState = {
-  year: string;
-  make: string;
-  model: string;
-  socialHandle: string;
-  tireSize: string;
-  wheelSize: string;
-  liftHeight: string;
-  suspensionSetup: string;
-  rubbingSeverity: string;
-  trimmingRequired: string;
-  bodyMountChop: string;
+const attachmentMessage = "Please add at least one photo of your build.";
+
+const otherOption = "Other";
+
+const earliestYear = 1995;
+const latestYear = Math.min(new Date().getFullYear() + 1, 2035);
+
+const yearOptions = Array.from({ length: latestYear - earliestYear + 1 }, (_, index) => String(latestYear - index));
+
+const modelsByMake: Record<string, string[]> = {
+  Toyota: ["Tacoma", "Tundra", "4Runner", "Sequoia", "Land Cruiser"],
+  Ford: ["F-150", "F-250", "F-350", "Ranger", "Bronco", "Maverick"],
+  Chevrolet: ["Silverado 1500", "Silverado 2500HD", "Silverado 3500HD", "Colorado", "Tahoe", "Suburban"],
+  GMC: ["Sierra 1500", "Sierra 2500HD", "Sierra 3500HD", "Canyon", "Yukon"],
+  Ram: ["1500", "2500", "3500"],
+  Jeep: ["Gladiator", "Wrangler", "Grand Cherokee"],
+  Nissan: ["Frontier", "Titan", "Titan XD", "Xterra"]
 };
 
-const initialRequiredState: RequiredState = {
-  year: "",
-  make: "",
-  model: "",
-  socialHandle: "",
-  tireSize: "",
-  wheelSize: "",
-  liftHeight: "",
-  suspensionSetup: "",
-  rubbingSeverity: "",
-  trimmingRequired: "",
-  bodyMountChop: ""
-};
-
-const attachmentMessage = "Please attach at least one photo or file.";
+const makeOptions = [...Object.keys(modelsByMake), otherOption];
 
 export function SubmitBuildForm() {
   const router = useRouter();
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [requiredState, setRequiredState] = useState<RequiredState>(initialRequiredState);
+  const [year, setYear] = useState("");
+  const [make, setMake] = useState("");
+  const [customMake, setCustomMake] = useState("");
+  const [model, setModel] = useState("");
+  const [customModel, setCustomModel] = useState("");
+  const [description, setDescription] = useState("");
+
+  const isCustomMake = make === otherOption;
+  const modelChoices = isCustomMake ? [] : modelsByMake[make] ?? [];
+  const isCustomModel = isCustomMake || model === otherOption;
+
+  const resolvedMake = isCustomMake ? customMake.trim() : make;
+  const resolvedModel = isCustomModel ? customModel.trim() : model;
 
   const canSubmit = useMemo(() => {
-    return Boolean(
-      requiredState.year.trim() &&
-      requiredState.make.trim() &&
-      requiredState.model.trim() &&
-      requiredState.socialHandle.trim() &&
-      requiredState.tireSize.trim() &&
-      requiredState.wheelSize.trim() &&
-      (requiredState.suspensionSetup.trim() || requiredState.liftHeight.trim()) &&
-      requiredState.rubbingSeverity.trim() &&
-      requiredState.trimmingRequired.trim() &&
-      requiredState.bodyMountChop.trim()
-    );
-  }, [requiredState]);
+    return Boolean(year && resolvedMake && resolvedModel && description.trim());
+  }, [year, resolvedMake, resolvedModel, description]);
+
+  function onMakeChange(value: string) {
+    setMake(value);
+    setModel("");
+    setCustomModel("");
+    if (value !== otherOption) setCustomMake("");
+  }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
 
     if (!canSubmit) {
-      setStatus("Please complete the highlighted vehicle, fitment, clearance, and social handle fields.");
+      setStatus("Please choose your year, make, and model, then tell us about your build.");
       return;
     }
 
@@ -79,6 +78,8 @@ export function SubmitBuildForm() {
         .filter((value): value is File => value instanceof File && value.size > 0);
       submitData.delete("attachment");
       submitData.set("hasAttachment", files.length > 0 ? "yes" : "");
+      submitData.set("make", resolvedMake);
+      submitData.set("model", resolvedModel);
 
       if (files.length === 0) {
         setStatus(attachmentMessage);
@@ -223,137 +224,104 @@ export function SubmitBuildForm() {
     }
   }
 
-  function updateRequiredField(field: keyof RequiredState) {
-    return (value: string) => setRequiredState((current) => ({ ...current, [field]: value }));
-  }
-
   return (
-    <form className="card form" onSubmit={onSubmit} encType="multipart/form-data">
-      <FormSection title="Contact Info" copy="Tell us who submitted the build. Public build pages only show your social handle. Contact email stays private.">
-        <div className="grid two">
-          <Field name="socialHandle" label="Instagram/social handle" placeholder="@username" value={requiredState.socialHandle} onValueChange={updateRequiredField("socialHandle")} required />
-          <Field name="contactEmail" label="Contact email" placeholder="you@example.com" type="email" required={false} />
-        </div>
-      </FormSection>
-
-      <FormSection title="Vehicle Info">
-        <div className="grid two">
-          <Field name="year" label="Vehicle year" placeholder="2024" inputMode="numeric" value={requiredState.year} onValueChange={updateRequiredField("year")} required />
-          <Field name="make" label="Make" placeholder="Toyota, Ford, Chevrolet, Jeep, etc." value={requiredState.make} onValueChange={updateRequiredField("make")} required />
-        </div>
-        <div className="grid two">
-          <Field name="model" label="Model" placeholder="Tacoma, F-150, Silverado, Gladiator, etc." value={requiredState.model} onValueChange={updateRequiredField("model")} required />
-          <Field name="trim" label="Trim" placeholder="TRD Off-Road, Rubicon, ZR2, etc." required={false} />
-        </div>
-        <div className="grid two">
-          <Field name="cab" label="Cab" placeholder="Double Cab, Crew Cab, Access Cab, etc." required={false} />
-          <Field name="bed" label="Bed length" placeholder="5 foot, 6 foot, short bed, long bed, etc." required={false} />
-        </div>
-      </FormSection>
-
-      <FormSection title="Wheels & Tires">
-        <div className="grid two">
-          <Field name="tireBrand" label="Tire brand" placeholder="Falken" required={false} />
-          <Field name="tireModel" label="Tire model" placeholder="Wildpeak A/T4W" required={false} />
-        </div>
-        <Field name="tireSize" label="Tire size" placeholder="285/70R17" value={requiredState.tireSize} onValueChange={updateRequiredField("tireSize")} required />
-        <div className="grid two">
-          <Field name="wheelBrand" label="Wheel brand" placeholder="Method" required={false} />
-          <Field name="wheelModel" label="Wheel model" placeholder="316" required={false} />
-        </div>
-        <div className="grid two">
-          <Field name="wheelSize" label="Wheel size" placeholder="17x8.5" value={requiredState.wheelSize} onValueChange={updateRequiredField("wheelSize")} required />
-          <Field name="wheelOffset" label="Wheel offset" placeholder="-12" inputMode="decimal" required={false} />
-        </div>
-      </FormSection>
-
-      <FormSection title="Suspension & Clearance" copy="Add lift height, suspension setup, or both.">
-        <div className="grid two">
-          <Field name="liftHeight" label="Lift height" placeholder="2.5, leveled, stock, etc." inputMode="decimal" value={requiredState.liftHeight} onValueChange={updateRequiredField("liftHeight")} required={false} />
-          <Field name="suspensionType" label="Suspension type" placeholder="Level kit" required={false} />
-        </div>
-        <div className="grid two">
-          <Field name="suspensionBrand" label="Suspension brand" placeholder="Fox" required={false} />
-          <Field name="suspensionModel" label="Suspension model" placeholder="2.5" required={false} />
-        </div>
-        <Field name="suspensionSetup" label="Suspension setup/details" placeholder="Coilovers, UCAs, rear leafs, spacers, etc." value={requiredState.suspensionSetup} onValueChange={updateRequiredField("suspensionSetup")} required={false} />
-        <Field name="rubbingSeverity" label="How bad is the rubbing?" placeholder="None, minor, moderate, severe, unknown, etc." value={requiredState.rubbingSeverity} onValueChange={updateRequiredField("rubbingSeverity")} required />
-        <div className="grid two">
-          <Field name="trimmingRequired" label="Was trimming needed?" placeholder="Yes, no, unknown, liner only, mud flap removed, etc." value={requiredState.trimmingRequired} onValueChange={updateRequiredField("trimmingRequired")} required />
-          <Field name="bodyMountChop" label="Body mount chop done?" placeholder="Yes, no, unknown, not applicable, etc." value={requiredState.bodyMountChop} onValueChange={updateRequiredField("bodyMountChop")} required />
-        </div>
-        <Field name="fitmentRisk" label="Fitment risk" placeholder="Low, medium, high, unknown, etc." required={false} />
+    <form className="verify-form" onSubmit={onSubmit} encType="multipart/form-data">
+      <div className="verify-vehicle-grid">
         <label className="field">
-          <span>Fitment/rubbing notes</span>
-          <textarea name="fitmentNotes" placeholder="Describe rubbing, trimming, alignment, wheel spacers, payload, or anything that affects clearance." />
+          <span>Year</span>
+          <select name="year" value={year} onChange={(event) => setYear(event.target.value)} required>
+            <option value="">Select year</option>
+            {yearOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
         </label>
-      </FormSection>
 
-      <FormSection title="Extra Build Details">
         <label className="field">
-          <span>Lighting upgrades</span>
-          <textarea name="lightingUpgrades" placeholder="Light bars, pods, ditch lights, fogs, switch panels, wiring, or anything lighting-related." />
+          <span>Make</span>
+          <select value={make} onChange={(event) => onMakeChange(event.target.value)} required>
+            <option value="">Select make</option>
+            {makeOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
         </label>
-        <label className="field">
-          <span>Favorite mods / recommendations</span>
-          <textarea name="favoriteModifications" placeholder="What upgrades do you like most, or what would you recommend to other Tacoma owners?" />
-        </label>
-        <label className="field">
-          <span>Full build list / extra notes</span>
-          <textarea name="fullBuildList" placeholder="Already have your setup written out? Paste the full build list here." />
-          <small className="fine">Already have your setup written out? Paste the full build list here.</small>
-        </label>
-      </FormSection>
+      </div>
 
-      <FormSection title="Upload File" copy="Photos, screenshots, and spec sheets help us verify the submission.">
+      {isCustomMake ? (
         <label className="field">
-          <span>Photo or file attachment <RequiredMark /></span>
-          <input name="attachment" type="file" accept="image/*,.pdf,.txt,.doc,.docx" multiple />
-          <small className="fine">Attach screenshots, notes files, spec sheets, or photos.</small>
+          <span>Make name</span>
+          <input
+            placeholder="Enter your make"
+            value={customMake}
+            onChange={(event) => setCustomMake(event.target.value)}
+            required
+          />
         </label>
-      </FormSection>
+      ) : null}
 
-      <button className="button primary full" type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Submitting..." : "Submit Build"}
+      <label className="field">
+        <span>Model</span>
+        {isCustomModel ? (
+          <input
+            placeholder="Enter your model"
+            value={customModel}
+            onChange={(event) => setCustomModel(event.target.value)}
+            required
+          />
+        ) : (
+          <select value={model} onChange={(event) => setModel(event.target.value)} disabled={!make} required>
+            <option value="">{make ? "Select model" : "Select a make first"}</option>
+            {modelChoices.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+            {make ? <option value={otherOption}>{otherOption}</option> : null}
+          </select>
+        )}
+      </label>
+
+      <label className="field">
+        <span>Tell us about your build</span>
+        <textarea
+          name="buildDescription"
+          className="verify-description"
+          placeholder="Wheels, tires, suspension, any rubbing or trimming, and anything else worth knowing about your setup."
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          required
+        />
+      </label>
+
+      <label className="field">
+        <span>Photos</span>
+        <input name="attachment" type="file" accept="image/*" multiple required />
+        <small className="fine">At least one photo of your truck is required for verification.</small>
+      </label>
+
+      <div className="verify-contact">
+        <div className="verify-contact-grid">
+          <label className="field">
+            <span>Social handle</span>
+            <input name="socialHandle" placeholder="@username" />
+          </label>
+          <label className="field">
+            <span>Email</span>
+            <input name="contactEmail" type="email" placeholder="you@example.com" />
+          </label>
+        </div>
+        <p className="fine">Optional. Your handle is used to credit the build, and your email stays private.</p>
+      </div>
+
+      <button className="button verify-submit" type="submit" disabled={isSubmitting}>
+        {isSubmitting ? "Sending..." : "Get My Build Verified"}
       </button>
-      {status ? <p className="muted">{status}</p> : null}
+      {status ? <p className="form-error">{status}</p> : null}
     </form>
   );
-}
-
-function FormSection({ title, copy, children }: { title: string; copy?: string; children: React.ReactNode }) {
-  return (
-    <section className="form-section">
-      <div>
-        <h3>{title}</h3>
-        {copy ? <p className="muted">{copy}</p> : null}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Field(props: React.InputHTMLAttributes<HTMLInputElement> & {
-  label: string;
-  name: string;
-  onValueChange?: (value: string) => void;
-}) {
-  const { label, required = true, onValueChange, onChange, ...inputProps } = props;
-  return (
-    <label className="field">
-      <span>{label}{required ? <RequiredMark /> : null}</span>
-      <input
-        {...inputProps}
-        required={required}
-        onChange={(event) => {
-          onValueChange?.(event.target.value);
-          onChange?.(event);
-        }}
-      />
-    </label>
-  );
-}
-
-function RequiredMark() {
-  return <span className="required-mark" aria-hidden="true">*</span>;
 }

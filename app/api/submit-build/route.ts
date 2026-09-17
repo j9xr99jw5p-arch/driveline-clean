@@ -8,6 +8,11 @@ export const dynamic = "force-dynamic";
 const reviewEmail = "driveline217@gmail.com";
 const fallbackResendFromEmail = "Driveline <auth@tacomaverifier.net>";
 
+// tire_size is NOT NULL in the database, but the public form now collects a
+// free-form description instead of individual specs. Real specs get filled in
+// during admin verification.
+const pendingSpecPlaceholder = "Pending verification";
+
 type FitmentRisk = "low" | "medium" | "high";
 
 export async function POST(request: Request) {
@@ -45,6 +50,7 @@ export async function POST(request: Request) {
     };
 
     const year = Number(getString("year"));
+    const buildDescription = getString("buildDescription");
     const fitmentNotes = getString("fitmentNotes");
     const fullBuildList = getString("fullBuildList");
     const contactEmail = getString("contactEmail");
@@ -68,6 +74,7 @@ export async function POST(request: Request) {
     const bodyMountChop = getString("bodyMountChop");
 
     const notes = [
+      buildDescription && `Build description: ${buildDescription}`,
       fitmentNotes && `Fitment notes: ${fitmentNotes}`,
       fullBuildList && `Full build list: ${fullBuildList}`,
       lightingUpgrades && `Lighting upgrades: ${lightingUpgrades}`,
@@ -95,10 +102,10 @@ export async function POST(request: Request) {
       trim: getString("trim") || null,
       cab: getString("cab") || null,
       bed: getString("bed") || null,
-      tire_size: getString("tireSize"),
+      tire_size: getString("tireSize") || pendingSpecPlaceholder,
       tire_brand: tireBrand || null,
       tire_model: tireModel || null,
-      wheel_size: getString("wheelSize"),
+      wheel_size: getString("wheelSize") || null,
       wheel_brand: wheelBrand || null,
       wheel_model: wheelModel || null,
       wheel_offset: toNumberOrNull(wheelOffset),
@@ -123,12 +130,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Please enter a valid vehicle year." }, { status: 400 });
     }
 
-    if (!insertData.make || !insertData.model || !insertData.tire_size || !insertData.wheel_size) {
-      return NextResponse.json({ error: "Missing build fields." }, { status: 400 });
+    if (!insertData.make || !insertData.model) {
+      return NextResponse.json({ error: "Please choose your vehicle make and model." }, { status: 400 });
     }
 
     if (!hasAttachment) {
-      return NextResponse.json({ error: "Please attach at least one photo or file." }, { status: 400 });
+      return NextResponse.json({ error: "Please add at least one photo of your build." }, { status: 400 });
     }
 
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -245,7 +252,7 @@ async function sendReviewNotification(
     tire_size: string;
     tire_brand: string | null;
     tire_model: string | null;
-    wheel_size: string;
+    wheel_size: string | null;
     wheel_brand: string | null;
     wheel_model: string | null;
     wheel_offset: number | null;
@@ -301,7 +308,7 @@ function buildReviewEmailText(
     tire_size: string;
     tire_brand: string | null;
     tire_model: string | null;
-    wheel_size: string;
+    wheel_size: string | null;
     wheel_brand: string | null;
     wheel_model: string | null;
     wheel_offset: number | null;
@@ -336,7 +343,7 @@ Fitment:
 Tire size: ${build.tire_size}
 Tire brand: ${build.tire_brand ?? "Unknown"}
 Tire model: ${build.tire_model ?? "Unknown"}
-Wheel size: ${build.wheel_size}
+Wheel size: ${build.wheel_size ?? "Unknown"}
 Wheel brand: ${build.wheel_brand ?? "Unknown"}
 Wheel model: ${build.wheel_model ?? "Unknown"}
 Wheel offset: ${build.wheel_offset ?? "Unknown"}
