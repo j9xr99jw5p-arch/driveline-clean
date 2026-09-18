@@ -98,7 +98,7 @@ function formatNaturalWheelTireCombo(build: VerifiedBuild) {
 
 function createOpeningSentence(title: string, setupParts: string[]) {
   const setup = setupParts.join(", ");
-  if (!setup) return `${title} has a Tacoma fitment setup worth comparing against before buying parts.`;
+  if (!setup) return `${title} has a Tacoma fitment setup worth comparing against before you commit to a build.`;
 
   const variant = title.length % 3;
   if (variant === 0) return `${title} pairs ${setup}.`;

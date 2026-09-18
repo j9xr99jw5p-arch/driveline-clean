@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 const quickLinks = [
   { label: "Visitor Tracking", href: "/admin/visitors", copy: "Recent traffic, top pages, and visit details." },
-  { label: "Parts Inventory", href: "/admin/parts", copy: "Product stock, variant status, and product notes." },
+  { label: "Inventory", href: "/admin/parts", copy: "Product stock, variant status, and product notes." },
   { label: "Manage Packs", href: "/admin/packs", copy: "Assign products to packs without changing categories." },
   { label: "Pending Builds", href: "/admin/builds", copy: "Review, summarize, and publish submitted builds." }
 ];

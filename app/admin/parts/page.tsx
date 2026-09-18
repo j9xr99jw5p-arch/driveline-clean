@@ -16,7 +16,7 @@ export default async function AdminPartsPage() {
 
   return (
     <>
-      <AdminPageIntro title="Parts Inventory" copy="Manage product variant stock and product notes." />
+      <AdminPageIntro title="Inventory" copy="Manage product variant stock and product notes." />
       <AdminStoreProductsManager data={storeProductsData} />
       <ProductStockPanel products={products} />
     </>

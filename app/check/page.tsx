@@ -9,7 +9,7 @@ export default async function CheckPage() {
       <div className="section grid two">
         <div>
           <p className="eyebrow">Fitment Questionnaire</p>
-          <h1>Check your Tacoma setup before you buy parts.</h1>
+          <h1>Check your Tacoma setup before you build.</h1>
           <p className="lead">Enter the tire, wheel, lift, and use-case details that matter. Driveline returns a conservative, plain-English report focused on rubbing, trimming, body mount clearance, and daily drivability.</p>
           <div className="card" style={{ marginTop: "1.5rem" }}>
             <h3>What Driveline checks</h3>

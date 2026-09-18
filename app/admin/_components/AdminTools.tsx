@@ -557,10 +557,9 @@ export function ProductStockPanel({ products }: { products: ProductStockRow[] })
     <section className="card admin-product-stock admin-compact-card">
       <div className="admin-panel-head">
         <div>
-          <p className="eyebrow">Parts Inventory</p>
+          <p className="eyebrow">Inventory</p>
           <h2>Product stock</h2>
         </div>
-        <Link className="button" href="/parts">View parts</Link>
       </div>
       {products.length ? (
         <div className="admin-stock-list">
@@ -598,7 +597,7 @@ export function ProductStockPanel({ products }: { products: ProductStockRow[] })
           })}
         </div>
       ) : (
-        <p className="muted">Finish the product catalog setup to manage part stock here.</p>
+        <p className="muted">Finish the product catalog setup to manage product stock here.</p>
       )}
     </section>
   );

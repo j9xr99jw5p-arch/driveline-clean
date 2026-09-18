@@ -180,7 +180,6 @@ export function AdminStoreProductsManager({ data }: { data: AdminStoreProductMan
                   >
                     {busy ? "Saving..." : product.active ? "Remove from Store" : "Add to Store"}
                   </button>
-                  {product.slug ? <a className="button" href={`/parts/${product.slug}`} target="_blank" rel="noreferrer">View</a> : null}
                 </div>
               </article>
             );

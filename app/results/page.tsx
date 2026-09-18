@@ -143,7 +143,7 @@ export default function ResultsPage() {
           <div className="grid two" style={{ marginTop: 32 }}>
             <div className="card">
               <h2>Alternative Setup</h2>
-              <p className="muted">{premiumInsights.alternativeSetup?.summary ?? "No nearby offset or wheel-width change lowered the current risk level in the rules engine. Keep the current categorical risk in mind before buying parts."}</p>
+              <p className="muted">{premiumInsights.alternativeSetup?.summary ?? "No nearby offset or wheel-width change lowered the current risk level in the rules engine. Keep the current categorical risk in mind before you commit to this setup."}</p>
             </div>
             <div className="card">
               <h2>Verified Build Match</h2>
