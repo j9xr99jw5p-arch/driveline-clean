@@ -3,6 +3,8 @@ import type { FitmentInput, FitmentReport, FitmentRisk, PremiumFitmentInsights }
 export function normalizeFitmentInput(values: Record<string, FormDataEntryValue | string | number | undefined>): FitmentInput {
   return {
     year: Number(values.year),
+    make: optionalString(values.make),
+    model: optionalString(values.model),
     trim: String(values.trim ?? ""),
     cab: String(values.cab ?? ""),
     bed: String(values.bed ?? ""),

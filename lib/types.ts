@@ -47,6 +47,8 @@ export type VerifiedBuildPhoto = {
 
 export type FitmentInput = {
   year: number;
+  make?: string;
+  model?: string;
   trim: string;
   cab: string;
   bed: string;

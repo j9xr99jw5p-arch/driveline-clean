@@ -17,6 +17,28 @@ export function vehicleOptionsKey(year: string | number, make: string) {
   return `${year}|${make}`;
 }
 
+export const otherVehicleOption = "Other";
+
+const earliestYear = 1995;
+const latestYear = Math.min(new Date().getFullYear() + 1, 2035);
+
+export const fallbackYearOptions = Array.from(
+  { length: latestYear - earliestYear + 1 },
+  (_, index) => String(latestYear - index)
+);
+
+// Used when the vehicle reference cache is empty or unreachable, so the
+// selectors always offer a usable set of options.
+export const fallbackModelsByMake: Record<string, string[]> = {
+  Toyota: ["Tacoma", "Tundra", "4Runner", "Sequoia", "Land Cruiser"],
+  Ford: ["F-150", "F-250", "F-350", "Ranger", "Bronco", "Maverick"],
+  Chevrolet: ["Silverado 1500", "Silverado 2500HD", "Silverado 3500HD", "Colorado", "Tahoe", "Suburban"],
+  GMC: ["Sierra 1500", "Sierra 2500HD", "Sierra 3500HD", "Canyon", "Yukon"],
+  Ram: ["1500", "2500", "3500"],
+  Jeep: ["Gladiator", "Wrangler", "Grand Cherokee"],
+  Nissan: ["Frontier", "Titan", "Titan XD", "Xterra"]
+};
+
 export type VehicleModelRow = {
   model_name: string | null;
   model_year: number | null;

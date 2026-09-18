@@ -10,6 +10,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const inputSchema = z.object({
   year: z.coerce.number().int().min(1995).max(2035),
+  make: z.string().trim().max(60).optional(),
+  model: z.string().trim().max(60).optional(),
   trim: z.string().min(1),
   cab: z.string().min(1),
   bed: z.string().min(1),

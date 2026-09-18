@@ -73,8 +73,10 @@ export default function ResultsPage() {
           <div className="card">
             <h2>Submitted Setup</h2>
             <div className="detail-grid">
-              <div className="detail-field"><span>Vehicle</span><strong>{input.year} Tacoma {input.trim}</strong></div>
-              <div className="detail-field"><span>Cab / Bed</span><strong>{input.cab} / {input.bed}</strong></div>
+              <div className="detail-field"><span>Vehicle</span><strong>{[input.year, input.make, input.model, input.trim].filter(Boolean).join(" ")}</strong></div>
+              {input.cab !== "Not specified" || input.bed !== "Not specified" ? (
+                <div className="detail-field"><span>Cab / Bed</span><strong>{[input.cab, input.bed].filter((value) => value && value !== "Not specified").join(" / ")}</strong></div>
+              ) : null}
               <div className="detail-field"><span>Tire</span><strong>{input.tireSize}</strong></div>
               {input.currentTireSize ? <div className="detail-field"><span>Current Tire</span><strong>{input.currentTireSize}</strong></div> : null}
               <div className="detail-field"><span>Wheel</span><strong>{input.wheelDiameter}x{input.wheelWidth}, {input.wheelOffset}mm</strong></div>
