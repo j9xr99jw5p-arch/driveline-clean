@@ -11,6 +11,40 @@ export function createStoredFitmentResult(input: FitmentInput, report: FitmentRe
   };
 }
 
+export function firstSentence(text: string) {
+  const trimmed = text.trim();
+  if (!trimmed) return "";
+  const match = trimmed.match(/^.+?[.!?](?:\s|$)/);
+  return (match ? match[0] : trimmed).trim();
+}
+
+export function toShortParagraphs(text: string, limit = 2) {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+export function formatFitmentLabel(value: string) {
+  const labels: Record<string, string> = {
+    daily: "Daily driver",
+    mixed: "Street and trail",
+    "off-road": "Trail focused",
+    normal: "Normal rear weight",
+    "sometimes-heavy": "Occasional load",
+    "constant-heavy": "Constant rear weight",
+    easy: "Easy",
+    acceptable: "Acceptable",
+    compromised: "Compromised",
+    limited: "Limited",
+    balanced: "Balanced",
+    strong: "Strong"
+  };
+
+  return labels[value] ?? value;
+}
+
 export function getFitmentSummaryRows(report: FitmentReport) {
   return [
     { label: "Rubbing risk", value: report.rubbingRisk },

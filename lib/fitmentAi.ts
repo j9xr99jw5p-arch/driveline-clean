@@ -44,23 +44,17 @@ export function normalizeAiExplanation(
     overviewAdvice:
       ai?.overviewAdvice ??
       ai?.summary ??
-      [
-        fallbackReport.explanation,
-        `Rubbing risk is ${fallbackReport.rubbingRisk}, and this setup ${trimmingText}.`
-      ].join(" "),
+      `Rubbing risk is ${fallbackReport.rubbingRisk}, and this setup ${trimmingText}.`,
     dailyDrivingAdvice:
       ai?.dailyDrivingAdvice ??
       ai?.dailyDriverNotes ??
-      "For daily driving, judge this setup by full-lock clearance, rubbing over bumps, and how much trimming you are willing to live with. A clean daily setup should turn quietly and consistently without catching the liner or mud flap area.",
+      "Check full-lock clearance and listen for liner or mud-flap contact on the street.",
     offRoadAdvice:
       ai?.offRoadAdvice ??
-      "Off-road use can reveal clearance problems sooner because the suspension compresses and the tire moves through more of the wheel well. Even if it clears on pavement, bumps, steering angle, and articulation can still create rubbing.",
+      "Trail use can rub even when the street feels clean, because the suspension compresses and the tire moves more.",
     beforeYouCommit:
       ai?.beforeYouCommit ??
-      [
-        `Before committing, verify full-lock clearance, front liner and mud flap clearance, caster and alignment, and the cab mount/body mount area; ${bodyMountText}.`,
-        fallbackReport.recommendations.length ? `Also consider: ${fallbackReport.recommendations.join(" ")}` : null
-      ].filter(Boolean).join(" "),
+      `Verify full-lock, liner, and body-mount clearance on the truck before you buy. ${bodyMountText}.`,
     disclaimer:
       ai?.disclaimer ??
       "Estimate only. Final clearance should be verified on the actual vehicle."

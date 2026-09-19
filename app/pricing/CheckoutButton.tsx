@@ -5,63 +5,35 @@ import { useState } from "react";
 const friendlyCheckoutError =
   "We’re having trouble opening checkout right now. We’re working to fix it as quickly as possible. Please try again in a moment.";
 
-export function CheckoutButton({ plan }: { plan: "builder" }) {
-  const [email, setEmail] = useState("");
+export function CheckoutButton() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function checkout() {
-    const normalizedEmail = email.trim().toLowerCase();
-
     setLoading(true);
     setError(null);
 
-    if (normalizedEmail) {
-      try {
-        const captureResponse = await fetch("/api/email-capture", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email: normalizedEmail, source: "pricing", plan })
-        });
-
-        if (!captureResponse.ok) {
-          const payload = await captureResponse.json().catch((error) => {
-            console.error("Email capture error response could not be read", error);
-            return {};
-          });
-          console.error("Email capture failed before checkout", {
-            status: captureResponse.status,
-            statusText: captureResponse.statusText,
-            payload
-          });
-        }
-      } catch (error) {
-        console.error("Email capture request failed before checkout", error);
-      }
-    }
-
     try {
-      const response = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ plan, email: normalizedEmail })
-      });
-      const payload = await response.json().catch((error) => {
-        console.error("Checkout response could not be read", error);
+      const response = await fetch("/api/checkout/fitment-credits", { method: "POST" });
+      const payload = await response.json().catch((readError) => {
+        console.error("Checkout response could not be read", readError);
         return {};
       });
+
       if (payload.url) {
         window.location.href = payload.url;
         return;
       }
+
       if (payload.redirectUrl) {
         window.location.href = payload.redirectUrl;
         return;
       }
+
       console.error("Checkout request failed", payload);
       setError(payload.error ?? friendlyCheckoutError);
-    } catch (error) {
-      console.error("Checkout request failed", error);
+    } catch (requestError) {
+      console.error("Checkout request failed", requestError);
       setError(friendlyCheckoutError);
     } finally {
       setLoading(false);
@@ -69,19 +41,9 @@ export function CheckoutButton({ plan }: { plan: "builder" }) {
   }
 
   return (
-    <div className="form">
-      <label className="field">
-        <span>Email for checkout</span>
-        <input
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder="you@example.com"
-          autoComplete="email"
-        />
-      </label>
+    <div>
       <button className="button primary full" type="button" disabled={loading} onClick={checkout}>
-        {loading ? "Opening checkout..." : "Start Builder Plus"}
+        {loading ? "Opening checkout..." : "Get 2 Premium Checks — $14"}
       </button>
       {error ? <p className="fine" style={{ marginTop: 10 }}>{error}</p> : null}
     </div>

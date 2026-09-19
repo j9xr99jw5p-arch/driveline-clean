@@ -3,8 +3,32 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { normalizeAiExplanation } from "@/lib/fitmentAi";
-import { getFitmentSummaryRows, loadFitmentResult } from "@/lib/reportRenderer";
+import {
+  firstSentence,
+  formatFitmentLabel,
+  loadFitmentResult,
+  toShortParagraphs
+} from "@/lib/reportRenderer";
 import type { StoredFitmentResult } from "@/lib/types";
+
+function AdviceBox({
+  title,
+  text,
+  limit = 2
+}: {
+  title: string;
+  text: string;
+  limit?: number;
+}) {
+  return (
+    <article className="card fitment-box">
+      <h2>{title}</h2>
+      {toShortParagraphs(text, limit).map((paragraph) => (
+        <p key={paragraph}>{paragraph}</p>
+      ))}
+    </article>
+  );
+}
 
 export default function ResultsPage() {
   const [result, setResult] = useState<StoredFitmentResult | null>(null);
@@ -23,10 +47,10 @@ export default function ResultsPage() {
     return (
       <section className="band">
         <div className="section">
-          <div className="card" style={{ maxWidth: 760, margin: "0 auto", textAlign: "center" }}>
+          <div className="card fitment-box" style={{ maxWidth: 640, margin: "0 auto", textAlign: "center" }}>
             <p className="eyebrow">Fitment Results</p>
             <h1>No fitment result yet.</h1>
-            <p className="lead">Start a check.</p>
+            <p>Start a check to see a short, readable report.</p>
             <Link className="button primary" href="/check">Start Fitment Check</Link>
           </div>
         </div>
@@ -36,165 +60,149 @@ export default function ResultsPage() {
 
   const { input, report } = result;
   const advice = normalizeAiExplanation(report.aiExplanation, report);
-  const riskLabel = `${report.rubbingRisk.charAt(0).toUpperCase()}${report.rubbingRisk.slice(1)} rubbing risk`;
   const isPremium = report.accessTier === "premium";
   const premiumInsights = report.premiumInsights;
-  const displayedWarnings = isPremium ? report.premiumWarnings ?? [] : report.warnings;
+  const displayedWarnings = (isPremium ? report.premiumWarnings ?? [] : report.warnings)
+    .filter((warning) => warning !== premiumInsights?.trimDetail)
+    .slice(0, 3);
+  const vehicleLine = [input.year, input.make, input.model, input.trim].filter(Boolean).join(" ");
+  const cabBed = [input.cab, input.bed].filter((value) => value && value !== "Not specified").join(" / ");
+  const setupFacts = [
+    { label: "Vehicle", value: vehicleLine },
+    cabBed ? { label: "Cab / Bed", value: cabBed } : null,
+    { label: "Tire", value: input.tireSize },
+    input.currentTireSize ? { label: "Current tire", value: input.currentTireSize } : null,
+    { label: "Wheel", value: `${input.wheelDiameter}x${input.wheelWidth}, ${input.wheelOffset}mm` },
+    { label: "Lift", value: `${input.liftHeight} in` },
+    { label: "Use", value: formatFitmentLabel(input.useCase) },
+    { label: "Rear weight", value: formatFitmentLabel(input.rearLoad) }
+  ].filter((fact): fact is { label: string; value: string } => Boolean(fact));
 
   return (
     <section className="band">
-      <div className="section">
-        <div className="page-head center">
+      <div className="section fitment-report">
+        <header className="fitment-report-hero">
           <p className="eyebrow">Fitment Results</p>
-          <h1>Your Fitment Report</h1>
-          <h2 style={{ marginTop: 12 }}>{report.verdict}</h2>
-          <p className="lead">{report.explanation}</p>
-          {!isPremium ? (
-            <p className="muted">This free result shows the general clearance risk. Premium reports include detailed recommendations and verified-build-supported comparisons when matching data exists.</p>
-          ) : null}
+          <span className={`pill ${report.rubbingRisk}`}>{report.rubbingRisk} risk</span>
+          <h1>{report.verdict}</h1>
+          <p className="fitment-report-lead">{firstSentence(report.explanation)}</p>
           {notice ? <p className="muted">{notice}</p> : null}
-          <div className="actions" style={{ justifyContent: "center" }}>
-            <Link className="button primary" href="/check">Run another fitment check</Link>
-          </div>
-        </div>
+        </header>
 
-        <div className="grid two">
-          <div className="card">
-            <span className={`pill ${report.rubbingRisk}`}>{report.rubbingRisk} risk</span>
-            <h2 style={{ marginTop: 16 }}>Assessment Summary</h2>
-            {getFitmentSummaryRows(report).map((row) => (
-              <div className="spec-row" key={row.label}>
-                <span className="muted">{row.label}</span>
-                <strong>{row.value}</strong>
+        <div className="fitment-report-grid">
+          <article className="card fitment-box">
+            <h2>Your setup</h2>
+            {setupFacts.map((fact) => (
+              <div className="spec-row" key={fact.label}>
+                <span className="muted">{fact.label}</span>
+                <strong>{fact.value}</strong>
               </div>
             ))}
-          </div>
-
-          <div className="card">
-            <h2>Submitted Setup</h2>
-            <div className="detail-grid">
-              <div className="detail-field"><span>Vehicle</span><strong>{[input.year, input.make, input.model, input.trim].filter(Boolean).join(" ")}</strong></div>
-              {input.cab !== "Not specified" || input.bed !== "Not specified" ? (
-                <div className="detail-field"><span>Cab / Bed</span><strong>{[input.cab, input.bed].filter((value) => value && value !== "Not specified").join(" / ")}</strong></div>
-              ) : null}
-              <div className="detail-field"><span>Tire</span><strong>{input.tireSize}</strong></div>
-              {input.currentTireSize ? <div className="detail-field"><span>Current Tire</span><strong>{input.currentTireSize}</strong></div> : null}
-              <div className="detail-field"><span>Wheel</span><strong>{input.wheelDiameter}x{input.wheelWidth}, {input.wheelOffset}mm</strong></div>
-              <div className="detail-field"><span>Lift</span><strong>{input.liftHeight} in</strong></div>
-              <div className="detail-field"><span>Use Case</span><strong>{input.useCase}</strong></div>
-              <div className="detail-field"><span>Rear Weight</span><strong>{input.rearLoad}</strong></div>
-            </div>
-          </div>
-        </div>
-
-        <div className="card fitment-advice-card" style={{ marginTop: 32 }}>
-          <div className="fitment-advice-head">
-            <div>
-              <p className="eyebrow">Fitment Advice</p>
-              <h2>What This Setup Means</h2>
-            </div>
-            <div className="fitment-badges" aria-label="Fitment risk signals">
-              <span className={`pill ${report.rubbingRisk}`}>{report.verdict}</span>
-              <span className={`pill ${report.rubbingRisk}`}>{riskLabel}</span>
-              <span className="pill">Trimming {report.trimmingLikely ? "likely" : "not likely"}</span>
-              <span className="pill">Body mount chop {report.bodyMountChopLikely ? "possible" : "not likely"}</span>
-            </div>
-          </div>
-
-          <div className="fitment-advice-copy">
-            {isPremium ? (
-              <>
-                <p className="fitment-headline">{advice.headline}</p>
-                <p>{advice.overviewAdvice}</p>
-              </>
+            {input.buildGoals ? (
+              <p className="fine" style={{ marginTop: 12 }}>{firstSentence(input.buildGoals)}</p>
             ) : null}
+          </article>
 
-            {isPremium ? (
-              <>
-                <section>
-                  <h3>Daily Driving Notes</h3>
-                  <p>{advice.dailyDrivingAdvice}</p>
-                </section>
-
-                <section>
-                  <h3>Off-Road Notes</h3>
-                  <p>{advice.offRoadAdvice}</p>
-                </section>
-
-                <section>
-                  <h3>Before You Commit</h3>
-                  <p>{advice.beforeYouCommit}</p>
-                </section>
-              </>
-            ) : (
-              <section>
-                <h3>Premium report</h3>
-                <p>{advice.beforeYouCommit}</p>
-                <div className="actions">
-                  <Link className="button primary" href="/check">Get 2 Premium Checks</Link>
-                  <Link className="button" href="/builds">Preview Verified Builds</Link>
-                </div>
-              </section>
-            )}
-          </div>
-
-          <p className="fine fitment-disclaimer">{advice.disclaimer}</p>
-        </div>
-
-        {isPremium && premiumInsights ? (
-          <div className="grid two" style={{ marginTop: 32 }}>
-            <div className="card">
-              <h2>Alternative Setup</h2>
-              <p className="muted">{premiumInsights.alternativeSetup?.summary ?? "No nearby offset or wheel-width change lowered the current risk level in the rules engine. Keep the current categorical risk in mind before you commit to this setup."}</p>
-            </div>
-            <div className="card">
-              <h2>Verified Build Match</h2>
-              <p className="muted">{premiumInsights.verifiedBuildMatchStatus}</p>
-            </div>
-            <div className="card">
-              <h2>Scenario Breakdown</h2>
-              <div className="section-stack compact-stack">
-                {premiumInsights.scenarioBreakdown.map((scenario) => (
-                  <div className="scenario-row" key={scenario.scenario}>
-                    <div className="spec-row">
-                      <span className="muted">{scenario.scenario}</span>
-                      <strong>{scenario.risk}</strong>
-                    </div>
-                    <p className="fine">{scenario.detail}</p>
-                  </div>
-                ))}
+          <article className="card fitment-box">
+            <h2>The bottom line</h2>
+            {toShortParagraphs(advice.overviewAdvice, 2).map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+            <div className="fitment-signals">
+              <div className="spec-row">
+                <span className="muted">Trimming</span>
+                <strong>{report.trimmingLikely ? "Likely" : "Not likely"}</strong>
+              </div>
+              <div className="spec-row">
+                <span className="muted">Body mount chop</span>
+                <strong>{report.bodyMountChopLikely ? "Check it" : "Not likely"}</strong>
+              </div>
+              <div className="spec-row">
+                <span className="muted">Daily driving</span>
+                <strong>{formatFitmentLabel(report.dailyDrivability)}</strong>
+              </div>
+              <div className="spec-row">
+                <span className="muted">Off-road</span>
+                <strong>{formatFitmentLabel(report.offRoadPracticality)}</strong>
               </div>
             </div>
-            <div className="card">
-              <h2>Trim Detail</h2>
-              <p className="muted">{premiumInsights.trimDetail}</p>
-              <h3 style={{ marginTop: 18 }}>Fitment Notes Used</h3>
-              <p className="muted">{premiumInsights.notesReasoning}</p>
-            </div>
-          </div>
-        ) : null}
-
-        <div className={isPremium ? "grid three" : "grid two"} style={{ marginTop: 32 }}>
-          <div className="card">
-            <h2>{isPremium ? "Premium Watchouts" : "Warnings"}</h2>
-            <ul className="stack-list">
-              {(displayedWarnings.length ? displayedWarnings : ["No major warnings were found for this setup."]).map((warning) => <li key={warning}>{warning}</li>)}
-            </ul>
-          </div>
-          {isPremium ? (
-            <div className="card">
-              <h2>Recommendations</h2>
-              <ul className="stack-list">
-                {report.recommendations.map((recommendation) => <li key={recommendation}>{recommendation}</li>)}
-              </ul>
-            </div>
-          ) : null}
-          <div className="card">
-            <h2>Fitment Notes</h2>
-            <p className="muted">{input.buildGoals || "No build goals were entered. Re-run the check with goals like daily comfort, less trimming, 33s, or trail use for better context."}</p>
-            <p className="fine" style={{ marginTop: 16 }}>Created {new Date(result.createdAt).toLocaleString()}</p>
-          </div>
+          </article>
         </div>
+
+        {isPremium ? (
+          <>
+            <div className="fitment-report-grid">
+              <AdviceBox title="Daily driving" text={advice.dailyDrivingAdvice} />
+              <AdviceBox title="Off-road" text={advice.offRoadAdvice} />
+            </div>
+
+            <AdviceBox title="Before you buy" text={advice.beforeYouCommit} />
+
+            {displayedWarnings.length ? (
+              <article className="card fitment-box">
+                <h2>Watchouts</h2>
+                <ul className="fitment-watchouts">
+                  {displayedWarnings.map((warning) => (
+                    <li key={warning}>{firstSentence(warning)}</li>
+                  ))}
+                </ul>
+              </article>
+            ) : null}
+
+            {premiumInsights ? (
+              <div className="fitment-report-grid">
+                <article className="card fitment-box">
+                  <h2>A cleaner option</h2>
+                  {premiumInsights.alternativeSetup ? (
+                    <>
+                      <p>{firstSentence(premiumInsights.alternativeSetup.summary)}</p>
+                      <div className="spec-row">
+                        <span className="muted">Suggested wheel</span>
+                        <strong>{premiumInsights.alternativeSetup.wheelWidth} in, {premiumInsights.alternativeSetup.wheelOffset}mm</strong>
+                      </div>
+                    </>
+                  ) : (
+                    <p>No nearby offset or width change lowered the risk in this check.</p>
+                  )}
+                </article>
+
+                <article className="card fitment-box">
+                  <h2>Verified builds</h2>
+                  <p>{firstSentence(premiumInsights.verifiedBuildMatchStatus)}</p>
+                </article>
+              </div>
+            ) : null}
+
+            {premiumInsights?.scenarioBreakdown?.length ? (
+              <article className="card fitment-box">
+                <h2>Where it can rub</h2>
+                {premiumInsights.scenarioBreakdown.map((scenario) => (
+                  <div className="spec-row" key={scenario.scenario}>
+                    <span className="muted">{scenario.scenario}</span>
+                    <strong className={`pill ${scenario.risk}`}>{scenario.risk}</strong>
+                  </div>
+                ))}
+                {premiumInsights.trimDetail ? (
+                  <p className="fine" style={{ marginTop: 12 }}>{firstSentence(premiumInsights.trimDetail)}</p>
+                ) : null}
+              </article>
+            ) : null}
+          </>
+        ) : (
+          <article className="card fitment-box fitment-upgrade">
+            <h2>Want the full read?</h2>
+            <p>Premium adds daily-driving notes, a cleaner alternative, and verified-build context.</p>
+            <div className="actions">
+              <Link className="button primary" href="/pricing">Get 2 Premium Checks</Link>
+              <Link className="button" href="/builds">Browse Verified Builds</Link>
+            </div>
+          </article>
+        )}
+
+        <footer className="fitment-report-foot">
+          <p className="fine">{advice.disclaimer}</p>
+          <Link className="button" href="/check">Run another check</Link>
+        </footer>
       </div>
     </section>
   );

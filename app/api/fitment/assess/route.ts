@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { assessFitment, buildPremiumFitmentInsights, buildPremiumWarnings, normalizeFitmentInput } from "@/lib/fitment";
-import { consumePremiumFitmentCredit, getFitmentEntitlementForUser } from "@/lib/fitmentEntitlements";
+import { consumeFreeFitmentCheck } from "@/lib/freeFitmentChecks";
+import { consumePremiumFitmentCredit, getFitmentEntitlementForCurrentUser, getFitmentEntitlementForUser } from "@/lib/fitmentEntitlements";
 import { saveGarageVehicleConfiguration } from "@/lib/garage";
 import { getCurrentSupabaseUser } from "@/lib/supabase/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -48,8 +49,8 @@ const schema = z.union([
   })
 ]);
 
-const freeCheckWindowMs = 60 * 60 * 1000;
-const freeCheckLimit = 30;
+const freeCheckWindowMs = 24 * 60 * 60 * 1000;
+const freeCheckLimit = 8;
 const freeCheckBuckets = new Map<string, { count: number; resetAt: number }>();
 
 export async function POST(request: Request) {
@@ -75,13 +76,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Free fitment check limit reached. Please try again later." }, { status: 429 });
     }
 
+    const currentEntitlement = await getFitmentEntitlementForCurrentUser();
+    const purchased = currentEntitlement.canRunPremiumCheck || currentEntitlement.premiumBuildAccess;
+    const consumed = await consumeFreeFitmentCheck({ purchased });
+    if (!consumed.ok) {
+      return NextResponse.json(
+        { error: "You’ve used your 3 free fitment checks. Get 2 full reports for $14.", freeChecks: consumed },
+        { status: 429 }
+      );
+    }
+
     return NextResponse.json({
       report: buildFreeReport({
         ...deterministicReport,
         accessTier: "free",
         aiExplanation: null
       }),
-      entitlement: null
+      entitlement: null,
+      freeChecks: consumed
     });
   }
 
@@ -228,11 +240,11 @@ function buildFreeReport(report: ReturnType<typeof assessFitment> & { accessTier
     recommendations: report.recommendations.slice(0, 1),
     aiExplanation: {
       headline: report.verdict,
-      overviewAdvice: "This free check gives a conservative overview of rubbing and clearance risk.",
-      dailyDrivingAdvice: "For daily driving, verify full-lock clearance and listen for liner, mud-flap, or bumper contact before committing.",
-      offRoadAdvice: "Trail use can create rubbing that does not appear on pavement because steering angle and suspension compression stack together.",
-      beforeYouCommit: "Premium checks add alternative setup comparison, trim-location detail, scenario breakdown, and verified-build match status.",
-      disclaimer: "Estimate only. Final clearance should be verified on the actual vehicle."
+      overviewAdvice: "This free check shows the conservative rubbing and clearance risk.",
+      dailyDrivingAdvice: "Check full-lock clearance before you buy.",
+      offRoadAdvice: "Trail use can rub even when the street feels clean.",
+      beforeYouCommit: "Premium adds a cleaner alternative, trim detail, and verified-build context.",
+      disclaimer: "Estimate only. Confirm clearance on the actual truck."
     }
   };
 }

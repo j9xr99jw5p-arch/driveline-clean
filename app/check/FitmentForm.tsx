@@ -25,6 +25,12 @@ type FitmentFormEntitlement = {
   canRunPremiumCheck: boolean;
 };
 
+type FitmentFormFreeChecks = {
+  limit: number;
+  remaining: number;
+  canRunFreeCheck: boolean;
+};
+
 type SpecDraft = {
   currentTireSize: string;
   tireSize: string;
@@ -55,9 +61,11 @@ const genericError = "We’re having trouble generating your fitment report righ
 
 export function FitmentForm({
   entitlement,
+  freeChecks,
   vehicleOptions
 }: {
   entitlement: FitmentFormEntitlement;
+  freeChecks: FitmentFormFreeChecks;
   vehicleOptions?: VehicleOptions;
 }) {
   const router = useRouter();
@@ -98,6 +106,11 @@ export function FitmentForm({
 
     if (!canDescribe) {
       setStatus("Pick your year, make, and model, then tell us what you want to do and how you use the truck.");
+      return;
+    }
+
+    if (mode === "free" && !freeChecks.canRunFreeCheck) {
+      setStatus("You’ve used your 3 free fitment checks. Get 2 full reports for $14.");
       return;
     }
 
@@ -367,7 +380,7 @@ export function FitmentForm({
         ) : null}
 
         <div className="check-actions">
-          <button className="button full" type="submit" name="mode" value="free" disabled={isWorking || !canDescribe}>
+          <button className="button full" type="submit" name="mode" value="free" disabled={isWorking || !canDescribe || !freeChecks.canRunFreeCheck}>
             {isWorking ? "Working..." : "Get Basic Result - Free"}
           </button>
           <button
@@ -381,9 +394,14 @@ export function FitmentForm({
           </button>
         </div>
 
-        {!canDescribe ? (
-          <p className="verify-hint">Pick your year, make, and model, then tell us your plan and how you use the truck.</p>
-        ) : null}
+        <p className="verify-hint">
+          {!canDescribe
+            ? "Pick your year, make, and model, then tell us your plan and how you use the truck. "
+            : ""}
+          {freeChecks.canRunFreeCheck
+            ? `${freeChecks.remaining} of ${freeChecks.limit} free checks remaining.`
+            : "You’ve used your 3 free checks. Get 2 full reports for $14."}
+        </p>
       </form>
 
       {status ? <p className="verify-status">{status}</p> : null}

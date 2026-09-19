@@ -38,7 +38,7 @@ export default async function AccountPage() {
           <div>
             <p className="eyebrow">Account</p>
             <h1>Sign in to save fitment checks.</h1>
-            <p className="lead">Use a secure sign-in link to save fitment checks and manage your subscription.</p>
+            <p className="lead">Use a secure sign-in link to save fitment checks and purchase premium reports.</p>
           </div>
           <SignInForm />
         </div>
@@ -65,8 +65,8 @@ export default async function AccountPage() {
   const { data: subscription } = await admin.from("subscriptions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const fitmentEntitlement = await getFitmentEntitlementForUser(userId);
   const hasPaidAccess = isPaidPlanActive(plan?.plan, plan?.status);
-  const planName = hasPaidAccess ? "Builder Plus" : "Free";
-  const checkLimit = (plan?.fitment_check_limit ?? 3) >= 999999 ? "Unlimited" : String(plan?.fitment_check_limit ?? 3);
+  const planName = fitmentEntitlement.canViewPremiumBuilds || hasPaidAccess ? "Premium" : "Free";
+  const checkLimit = "3";
   const displayName = profile?.display_name || user.email || "Signed-in user";
   const canAccessAdmin = isAdminEmail(user.email);
   const showDebug = process.env.NODE_ENV === "development";
@@ -83,15 +83,15 @@ export default async function AccountPage() {
       <div className="section grid two">
         <div>
           <p className="eyebrow">Account</p>
-          <h1>Subscription</h1>
-          <p className="lead">Manage your Driveline plan, fitment-check usage, and billing access.</p>
+          <h1>Your account</h1>
+          <p className="lead">Manage your fitment checks, premium reports, and billing access.</p>
         </div>
         <div className="card">
           <div className="spec-row"><span className="muted">Profile</span><strong>{displayName}</strong></div>
           <div className="spec-row"><span className="muted">Role</span><strong>{profile?.role ?? "user"}</strong></div>
           <div className="spec-row"><span className="muted">Email</span><strong>{user.email}</strong></div>
           <div className="spec-row"><span className="muted">Plan</span><strong>{planName}</strong></div>
-          <div className="spec-row"><span className="muted">Checks used</span><strong>{plan?.fitment_checks_used ?? 0} / {checkLimit}</strong></div>
+          <div className="spec-row"><span className="muted">Free checks used</span><strong>{Math.min(Number(plan?.fitment_checks_used ?? 0), 3)} / {checkLimit}</strong></div>
           <div className="spec-row"><span className="muted">Subscription</span><strong>{hasPaidAccess ? plan?.status : subscription?.status ?? "none"}</strong></div>
           <hr style={{ borderColor: "var(--border-color)", margin: "20px 0" }} />
           <h2>One-time fitment credits</h2>

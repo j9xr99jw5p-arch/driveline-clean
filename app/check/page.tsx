@@ -1,13 +1,16 @@
 import { FitmentForm } from "./FitmentForm";
 import { getFitmentEntitlementForCurrentUser } from "@/lib/fitmentEntitlements";
+import { getFreeFitmentCheckQuota } from "@/lib/freeFitmentChecks";
 import { getVehicleOptions } from "@/lib/vehicleOptions.server";
 
 export const dynamic = "force-dynamic";
 
 export default async function CheckPage() {
-  const [entitlement, vehicleOptions] = await Promise.all([
-    getFitmentEntitlementForCurrentUser(),
-    getVehicleOptions()
+  const entitlement = await getFitmentEntitlementForCurrentUser();
+  const purchased = entitlement.canRunPremiumCheck || entitlement.premiumBuildAccess;
+  const [vehicleOptions, freeChecks] = await Promise.all([
+    getVehicleOptions(),
+    getFreeFitmentCheckQuota({ purchased })
   ]);
 
   return (
@@ -20,7 +23,7 @@ export default async function CheckPage() {
         </p>
       </section>
 
-      <FitmentForm entitlement={entitlement} vehicleOptions={vehicleOptions} />
+      <FitmentForm entitlement={entitlement} freeChecks={freeChecks} vehicleOptions={vehicleOptions} />
     </div>
   );
 }

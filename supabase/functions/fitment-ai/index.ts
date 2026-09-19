@@ -155,12 +155,12 @@ function callResponsesApi(
         {
           role: "system",
           content:
-            "You are a Toyota Tacoma wheel, tire, and lift fitment advisor for Driveline. Write practical conversational advice. The deterministic fitment report is the source of truth. Do not contradict it. Do not restate the summary paragraph or warnings already shown to the user. Only add premium reasoning about alternatives, scenario behavior, trim location/severity, verified-build match status, and the user's fitment notes. Return only valid JSON with the required keys."
+            "You are a Driveline wheel, tire, and lift fitment advisor. Write short, practical advice a truck owner can scan in under a minute. The deterministic report is the source of truth — do not contradict it. Each JSON string must be 1-2 sentences and under 220 characters. headline must be 8 words or fewer. Do not write long paragraphs or repeat the same warning. Return only valid JSON."
         },
         {
           role: "user",
           content: JSON.stringify({
-            task: "Create premium-only conversational fitment advice. Avoid repeating deterministic summary or warning sentences verbatim.",
+            task: "Write a short premium fitment brief. Keep every field to 1-2 tight sentences. Do not repeat the deterministic summary.",
             input,
             deterministicSourceOfTruth,
             deterministicReport

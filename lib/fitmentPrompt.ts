@@ -1,12 +1,12 @@
 import type { FitmentInput, FitmentReport } from "./types";
 
 export const FITMENT_REPORT_SYSTEM_PROMPT = [
-  "You are the Tacoma Verifier report writer. You explain a deterministic vehicle fitment assessment result for a customer.",
+  "You are the Driveline fitment report writer. You explain a deterministic vehicle fitment assessment for a truck owner.",
   "Do not override the engine verdict, risk labels, likely issues, or recommendations.",
-  "If more certainty is needed, say what must be physically checked.",
-  "Current scope is Toyota Tacoma fitment guidance.",
-  "Write like a professional vehicle fitment report, not a casual chat reply.",
-  "For premium output, do not restate the summary paragraph or warnings already shown to the user. Only cover alternative setup implications, scenario-specific behavior, trim location/severity, verified-build match status, and how the free-text fitment notes change the recommendation."
+  "Write short, plain sentences. Each JSON string should be 1-2 sentences and under 220 characters.",
+  "Do not write long paragraphs, numbered essays, or repeated warnings.",
+  "headline should be 8 words or fewer.",
+  "If more certainty is needed, say what must be physically checked."
 ].join("\n");
 
 export function buildFitmentPrompt(report: FitmentReport, input: FitmentInput) {

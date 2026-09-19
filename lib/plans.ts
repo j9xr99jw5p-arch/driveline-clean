@@ -1,7 +1,7 @@
 export const planLimits = {
   free: { fitment_check_limit: 3 },
-  paid: { fitment_check_limit: 999999 },
-  builder: { fitment_check_limit: 999999 }
+  paid: { fitment_check_limit: 3 },
+  builder: { fitment_check_limit: 3 }
 } as const;
 
 export const plans = [
@@ -10,15 +10,15 @@ export const plans = [
     name: "Free",
     price: "$0",
     interval: "",
-    description: "Browse verified builds and run a few fitment checks.",
-    features: ["3 fitment checks", "Verified build library", "Basic fitment report"]
+    description: "Run a few basic fitment checks before you commit to a setup.",
+    features: ["3 basic fitment checks", "Clearance risk label", "Short conservative verdict"]
   },
   {
-    key: "builder",
-    name: "Builder Plus",
-    price: "$12",
-    interval: "/month",
-    description: "Full access to Driveline Auto and every Tacoma fitment feature.",
-    features: ["Full access to all features", "Unlimited fitment planning", "Account billing tools"]
+    key: "premium",
+    name: "Premium Checks",
+    price: "$14",
+    interval: " one-time",
+    description: "Two full AI fitment reports when you want a deeper answer.",
+    features: ["2 full AI fitment reports", "What to change before you buy", "Verified Builds access"]
   }
 ] as const;
