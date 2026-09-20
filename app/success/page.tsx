@@ -11,11 +11,12 @@ export default async function SuccessPage({ searchParams }: { searchParams: Prom
     <section className="band">
       <div className="section page-head center">
         <p className="eyebrow">{isFitmentPurchase ? "Payment received" : "Subscription Confirmed"}</p>
-        <h1>{isFitmentPurchase ? "Your premium checks are being confirmed" : "You&apos;re subscribed"}</h1>
+        <h1>{isFitmentPurchase ? "Your extra checks are being confirmed" : "You&apos;re subscribed"}</h1>
         <p className="lead">{isFitmentPurchase
-          ? entitlementConfirmed
-            ? `Your account currently has ${entitlement?.premiumChecksRemaining ?? 0} premium checks remaining and Verified Builds access is active.`
-            : "Stripe is confirming your one-time purchase. Premium checks and Verified Builds access are granted by the secure webhook, not by this page."
+            {isFitmentPurchase
+            ? entitlementConfirmed
+              ? `Your account currently has ${entitlement?.premiumChecksRemaining ?? 0} extra checks remaining, and the verified builds library is unlocked.`
+              : "Stripe is confirming your one-time purchase. Extra checks and Verified Builds access are granted by the secure webhook, not by this page."
           : "Your Driveline Auto subscription is active."}</p>
         <div className="actions" style={{ justifyContent: "center" }}>
           <Link className="button primary" href="/check">Start a Fitment Check</Link>

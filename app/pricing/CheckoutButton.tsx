@@ -43,7 +43,7 @@ export function CheckoutButton() {
   return (
     <div>
       <button className="button primary full" type="button" disabled={loading} onClick={checkout}>
-        {loading ? "Opening checkout..." : "Get 2 Premium Checks — $14"}
+        {loading ? "Opening checkout..." : "Get 2 more checks — $14"}
       </button>
       {error ? <p className="fine" style={{ marginTop: 10 }}>{error}</p> : null}
     </div>

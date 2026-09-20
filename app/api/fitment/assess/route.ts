@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { assessFitment, buildPremiumFitmentInsights, buildPremiumWarnings, normalizeFitmentInput } from "@/lib/fitment";
-import { consumeFreeFitmentCheck } from "@/lib/freeFitmentChecks";
-import { consumePremiumFitmentCredit, getFitmentEntitlementForCurrentUser, getFitmentEntitlementForUser } from "@/lib/fitmentEntitlements";
+import { consumeFreeFitmentCheck, getFreeFitmentCheckQuota } from "@/lib/freeFitmentChecks";
+import { consumePremiumFitmentCredit, getFitmentEntitlementForCurrentUser } from "@/lib/fitmentEntitlements";
 import { saveGarageVehicleConfiguration } from "@/lib/garage";
 import { getCurrentSupabaseUser } from "@/lib/supabase/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { findMatchingVerifiedBuilds } from "@/lib/verifiedBuildMatch";
 
 const inputSchema = z.object({
   year: z.coerce.number().int().min(1995).max(2035),
@@ -43,7 +44,7 @@ const schema = z.union([
   }),
   z.object({
     input: inputSchema,
-    mode: z.enum(["free", "premium"]).default("premium"),
+    mode: z.enum(["free", "premium"]).default("free"),
     requestId: z.string().trim().min(8).max(120).optional(),
     aiExplanation: aiReportSchema.nullish()
   })
@@ -52,6 +53,7 @@ const schema = z.union([
 const freeCheckWindowMs = 24 * 60 * 60 * 1000;
 const freeCheckLimit = 8;
 const freeCheckBuckets = new Map<string, { count: number; resetAt: number }>();
+const outOfChecksMessage = "You’ve used your 3 free fitment checks. Get 2 more checks for $14.";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -59,93 +61,124 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid fitment input" }, { status: 400 });
 
   const parsedInput = "input" in parsed.data ? parsed.data.input : parsed.data;
-  const mode = "input" in parsed.data ? parsed.data.mode : parsed.data.mode ?? "free";
   const requestId = "input" in parsed.data ? parsed.data.requestId ?? null : parsed.data.requestId ?? null;
   const aiExplanation = "input" in parsed.data ? parsed.data.aiExplanation ?? null : null;
 
   const input = normalizeFitmentInput(parsedInput);
   const deterministicReport = assessFitment(input);
+  const entitlement = await getFitmentEntitlementForCurrentUser();
+  const freeQuota = await getFreeFitmentCheckQuota();
+  const billing = freeQuota.canRunFreeCheck ? "free" : entitlement.canRunPremiumCheck ? "paid" : null;
+
+  if (!billing) {
+    return NextResponse.json({ error: outOfChecksMessage, freeChecks: freeQuota }, { status: 429 });
+  }
+
+  if (billing === "paid" && !entitlement.isAuthenticated) {
+    return NextResponse.json({ error: "Sign in before using a paid fitment check." }, { status: 401 });
+  }
+
+  if (billing === "free" && isFreeCheckLimited(await getRequestIp())) {
+    return NextResponse.json({ error: "Free fitment check limit reached. Please try again later." }, { status: 429 });
+  }
+
+  const matches = await findMatchingVerifiedBuilds(input);
+  const premiumInsights = buildPremiumFitmentInsights(input, deterministicReport);
+  premiumInsights.verifiedBuildMatchStatus = matches.status;
+
   const report = {
     ...deterministicReport,
-    accessTier: mode,
-    aiExplanation: mode === "premium" ? aiExplanation : null
+    accessTier: billing === "paid" ? "premium" as const : "free" as const,
+    aiExplanation,
+    premiumWarnings: buildPremiumWarnings(input, deterministicReport),
+    premiumInsights,
+    matchedBuilds: matches.builds
   };
 
-  if (mode === "free") {
-    if (isFreeCheckLimited(await getRequestIp())) {
-      return NextResponse.json({ error: "Free fitment check limit reached. Please try again later." }, { status: 429 });
-    }
-
-    const currentEntitlement = await getFitmentEntitlementForCurrentUser();
-    const purchased = currentEntitlement.canRunPremiumCheck || currentEntitlement.premiumBuildAccess;
-    const consumed = await consumeFreeFitmentCheck({ purchased });
+  if (billing === "free") {
+    const consumed = await consumeFreeFitmentCheck();
     if (!consumed.ok) {
-      return NextResponse.json(
-        { error: "You’ve used your 3 free fitment checks. Get 2 full reports for $14.", freeChecks: consumed },
-        { status: 429 }
-      );
+      return NextResponse.json({ error: outOfChecksMessage, freeChecks: consumed }, { status: 429 });
     }
 
-    return NextResponse.json({
-      report: buildFreeReport({
-        ...deterministicReport,
-        accessTier: "free",
-        aiExplanation: null
-      }),
-      entitlement: null,
-      freeChecks: consumed
-    });
-  }
+    let garageSyncError: string | null = null;
+    if (entitlement.userId) {
+      try {
+        garageSyncError = await persistSignedInCheck({
+          userId: entitlement.userId,
+          input,
+          report,
+          consumePaidCredit: false,
+          requestId
+        });
+      } catch (error) {
+        console.error("Signed-in free check save failed", error);
+        garageSyncError = "We’re having trouble saving your garage details right now. Your fitment report is still available.";
+      }
+    }
 
-  if (!aiExplanation) {
-    return NextResponse.json(
-      { error: "The premium AI report could not be generated. No premium check was used." },
-      { status: 503 }
-    );
-  }
-
-  const supabase = await createSupabaseServerClient();
-  const currentUser = await getCurrentSupabaseUser(supabase);
-  if (!currentUser) return NextResponse.json({ error: "Sign in before using a premium fitment check." }, { status: 401 });
-
-  const { userId } = currentUser;
-  const entitlement = await getFitmentEntitlementForUser(userId);
-  if (!entitlement.canRunPremiumCheck) {
-    return NextResponse.json({ error: "You do not have any premium fitment checks remaining." }, { status: 402 });
+    return NextResponse.json({ report, garageSyncError, entitlement, freeChecks: consumed });
   }
 
   let garageSyncError: string | null = null;
-  const admin = createSupabaseAdminClient();
-  const premiumInsights = buildPremiumFitmentInsights(input, deterministicReport);
-  premiumInsights.verifiedBuildMatchStatus = await getVerifiedBuildMatchStatus(admin, input);
-  const premiumReport = {
-    ...report,
-    premiumWarnings: buildPremiumWarnings(input, deterministicReport),
-    premiumInsights
-  };
+  try {
+    garageSyncError = await persistSignedInCheck({
+      userId: entitlement.userId!,
+      input,
+      report,
+      consumePaidCredit: true,
+      requestId
+    });
+  } catch (error) {
+    console.error("Paid fitment check failed", error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not use a paid check. Please try again." }, { status: 500 });
+  }
+
+  const updatedEntitlement = await getFitmentEntitlementForCurrentUser();
+  return NextResponse.json({ report, garageSyncError, entitlement: updatedEntitlement, freeChecks: freeQuota });
+}
+
+async function persistSignedInCheck({
+  userId,
+  input,
+  report,
+  consumePaidCredit,
+  requestId
+}: {
+  userId: string;
+  input: ReturnType<typeof normalizeFitmentInput>;
+  report: ReturnType<typeof assessFitment> & Record<string, unknown>;
+  consumePaidCredit: boolean;
+  requestId: string | null;
+}) {
+  const supabase = await createSupabaseServerClient();
+  const currentUser = await getCurrentSupabaseUser(supabase);
+  if (!currentUser || currentUser.userId !== userId) {
+    throw new Error("Sign in before using a paid fitment check.");
+  }
 
   const { data: assessment, error } = await supabase.from("fitment_assessments").insert({
     user_id: userId,
     input,
-    report: premiumReport,
-    overall_verdict: premiumReport.verdict,
-    rubbing_risk: premiumReport.rubbingRisk,
-    trimming_likely: premiumReport.trimmingLikely,
-    body_mount_chop_likely: premiumReport.bodyMountChopLikely
+    report,
+    overall_verdict: report.verdict,
+    rubbing_risk: report.rubbingRisk,
+    trimming_likely: report.trimmingLikely,
+    body_mount_chop_likely: report.bodyMountChopLikely
   }).select("id").maybeSingle();
-  if (error) return NextResponse.json({ error: "Could not save assessment." }, { status: 500 });
+  if (error) throw new Error("Could not save assessment.");
 
+  let garageSyncError: string | null = null;
   try {
     await saveGarageVehicleConfiguration(supabase, userId, input);
   } catch {
-    garageSyncError = "Assessment saved, but the garage vehicle could not be synced. Please try again shortly.";
+    garageSyncError = "We’re having trouble saving your garage details right now. Your fitment report is still available.";
   }
 
-  let updatedEntitlement = entitlement;
-
-  if (entitlement.premiumChecksRemaining > 0) {
+  if (consumePaidCredit) {
+    const admin = createSupabaseAdminClient();
     try {
-      const consumed = await consumePremiumFitmentCredit({
+      await consumePremiumFitmentCredit({
         supabase: admin,
         userId,
         fitmentCheckId: typeof assessment?.id === "string" ? assessment.id : null,
@@ -158,20 +191,13 @@ export async function POST(request: Request) {
           lift_height: input.liftHeight
         }
       });
-
-      updatedEntitlement = {
-        ...entitlement,
-        premiumChecksRemaining: consumed?.premium_checks_remaining ?? Math.max(0, entitlement.premiumChecksRemaining - 1),
-        canRunPremiumCheck: (consumed?.premium_checks_remaining ?? 0) > 0,
-        canViewPremiumBuilds: entitlement.canViewPremiumBuilds
-      };
     } catch (consumeError) {
-      console.error("Premium fitment credit consume failed", consumeError);
-      return NextResponse.json({ error: "Could not use a premium check. Please try again." }, { status: 500 });
+      console.error("Paid fitment credit consume failed", consumeError);
+      throw new Error("Could not use a paid check. Please try again.");
     }
   }
 
-  return NextResponse.json({ report: premiumReport, garageSyncError, entitlement: updatedEntitlement });
+  return garageSyncError;
 }
 
 async function getRequestIp() {
@@ -193,58 +219,4 @@ function isFreeCheckLimited(key: string) {
 
   current.count += 1;
   return false;
-}
-
-async function getVerifiedBuildMatchStatus(supabase: ReturnType<typeof createSupabaseAdminClient>, input: ReturnType<typeof normalizeFitmentInput>) {
-  try {
-    const minOffset = input.wheelOffset - 12;
-    const maxOffset = input.wheelOffset + 12;
-    const minWidth = input.wheelWidth - 0.5;
-    const maxWidth = input.wheelWidth + 0.5;
-    const minLift = Math.max(0, input.liftHeight - 0.75);
-    const maxLift = input.liftHeight + 0.75;
-    const { count, error } = await supabase
-      .from("verified_builds")
-      .select("id", { count: "exact", head: true })
-      .eq("published", true)
-      .eq("year", input.year)
-      .eq("tire_size", input.tireSize)
-      .gte("wheel_offset", minOffset)
-      .lte("wheel_offset", maxOffset)
-      .gte("wheel_width", minWidth)
-      .lte("wheel_width", maxWidth)
-      .gte("lift_height", minLift)
-      .lte("lift_height", maxLift);
-
-    if (error) {
-      console.error("Verified build match lookup failed", error);
-      return "Verified-build match status could not be checked right now.";
-    }
-
-    if (!count) return "No closely matching verified builds yet - check back as the database grows.";
-    return `${count} similar verified ${count === 1 ? "build" : "builds"} found.`;
-  } catch (error) {
-    console.error("Verified build match lookup crashed", error);
-    return "Verified-build match status could not be checked right now.";
-  }
-}
-
-function buildFreeReport(report: ReturnType<typeof assessFitment> & { accessTier: "free" | "premium"; aiExplanation: null }) {
-  const { premiumInsights: _premiumInsights, premiumWarnings: _premiumWarnings, ...freeReport } = report;
-  void _premiumInsights;
-  void _premiumWarnings;
-  return {
-    ...freeReport,
-    accessTier: "free" as const,
-    warnings: report.warnings.slice(0, 2),
-    recommendations: report.recommendations.slice(0, 1),
-    aiExplanation: {
-      headline: report.verdict,
-      overviewAdvice: "This free check shows the conservative rubbing and clearance risk.",
-      dailyDrivingAdvice: "Check full-lock clearance before you buy.",
-      offRoadAdvice: "Trail use can rub even when the street feels clean.",
-      beforeYouCommit: "Premium adds a cleaner alternative, trim detail, and verified-build context.",
-      disclaimer: "Estimate only. Confirm clearance on the actual truck."
-    }
-  };
 }

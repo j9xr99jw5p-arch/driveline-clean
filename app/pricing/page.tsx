@@ -8,12 +8,12 @@ export default function PricingPage() {
       <div className="section">
         <div className="page-head center">
           <p className="eyebrow">Pricing</p>
-          <h1>Check Free. Go Deeper for $14.</h1>
-          <p className="lead">Three basic fitment checks are included. When you want the full report, it is a one-time $14 charge — no monthly subscription.</p>
+          <h1>Three Full Checks Free. More for $14.</h1>
+          <p className="lead">Every check is the full report, including verified-build matches. You only pay when you want to run it again.</p>
         </div>
         <div className="detail-grid" style={{ marginBottom: 28 }}>
-          <div className="detail-field"><span>Free</span><strong>3 basic fitment checks</strong></div>
-          <div className="detail-field"><span>Premium</span><strong>$14 one-time for 2 full reports</strong></div>
+          <div className="detail-field"><span>Free</span><strong>3 full fitment checks</strong></div>
+          <div className="detail-field"><span>Then</span><strong>$14 one-time for 2 more checks</strong></div>
         </div>
         <div className="pricing-grid" style={{ marginTop: 28 }}>
           {plans.map((plan) => (
@@ -35,9 +35,9 @@ export default function PricingPage() {
           <p className="eyebrow">Billing Notes</p>
           <h2>The $14 charge is one-time.</h2>
           <div className="detail-grid">
-            <div className="detail-field"><span>Free checks</span><strong>Capped at 3 basic reports</strong></div>
-            <div className="detail-field"><span>Premium</span><strong>$14 unlocks 2 full AI reports and Verified Builds access</strong></div>
-            <div className="detail-field"><span>Account</span><strong>Sign in before checkout so the reports land on your account</strong></div>
+            <div className="detail-field"><span>Free checks</span><strong>Capped at 3 full reports</strong></div>
+            <div className="detail-field"><span>Paid checks</span><strong>$14 adds 2 more full reports and the verified builds library</strong></div>
+            <div className="detail-field"><span>Account</span><strong>Sign in before checkout so extra checks land on your account</strong></div>
           </div>
         </div>
       </div>

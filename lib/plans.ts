@@ -10,15 +10,15 @@ export const plans = [
     name: "Free",
     price: "$0",
     interval: "",
-    description: "Run a few basic fitment checks before you commit to a setup.",
-    features: ["3 basic fitment checks", "Clearance risk label", "Short conservative verdict"]
+    description: "Three full fitment checks. Same report you’ll get after you pay.",
+    features: ["3 full fitment checks", "Clearance, trim, and drivability", "Matched against verified builds"]
   },
   {
     key: "premium",
-    name: "Premium Checks",
+    name: "More Checks",
     price: "$14",
     interval: " one-time",
-    description: "Two full AI fitment reports when you want a deeper answer.",
-    features: ["2 full AI fitment reports", "What to change before you buy", "Verified Builds access"]
+    description: "Keep checking after the free ones are used.",
+    features: ["2 more full fitment checks", "Same report as the free checks", "Browse the verified builds library"]
   }
 ] as const;

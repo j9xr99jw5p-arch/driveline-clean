@@ -38,7 +38,7 @@ export default async function AccountPage() {
           <div>
             <p className="eyebrow">Account</p>
             <h1>Sign in to save fitment checks.</h1>
-            <p className="lead">Use a secure sign-in link to save fitment checks and purchase premium reports.</p>
+            <p className="lead">Use a secure sign-in link to save fitment checks and buy more when the free ones are used.</p>
           </div>
           <SignInForm />
         </div>
@@ -84,7 +84,7 @@ export default async function AccountPage() {
         <div>
           <p className="eyebrow">Account</p>
           <h1>Your account</h1>
-          <p className="lead">Manage your fitment checks, premium reports, and billing access.</p>
+          <p className="lead">Manage your fitment checks, extra check credits, and billing access.</p>
         </div>
         <div className="card">
           <div className="spec-row"><span className="muted">Profile</span><strong>{displayName}</strong></div>
@@ -95,9 +95,9 @@ export default async function AccountPage() {
           <div className="spec-row"><span className="muted">Subscription</span><strong>{hasPaidAccess ? plan?.status : subscription?.status ?? "none"}</strong></div>
           <hr style={{ borderColor: "var(--border-color)", margin: "20px 0" }} />
           <h2>One-time fitment credits</h2>
-          <div className="spec-row"><span className="muted">Premium checks remaining</span><strong>{fitmentEntitlement.premiumChecksRemaining}</strong></div>
-          <div className="spec-row"><span className="muted">Verified Builds access</span><strong>{fitmentEntitlement.canViewPremiumBuilds ? "Active" : "Not active"}</strong></div>
-          <p className="fine" style={{ marginTop: 10 }}>$14 one-time includes two premium fitment checks and Verified Builds access under the current access policy.</p>
+          <div className="spec-row"><span className="muted">Extra checks remaining</span><strong>{fitmentEntitlement.premiumChecksRemaining}</strong></div>
+          <div className="spec-row"><span className="muted">Verified Builds library</span><strong>{fitmentEntitlement.canViewPremiumBuilds ? "Unlocked" : "Locked"}</strong></div>
+          <p className="fine" style={{ marginTop: 10 }}>$14 one-time adds two more full fitment checks and unlocks the verified builds library.</p>
           <div style={{ marginTop: 16 }}><FitmentCreditsCheckoutButton /></div>
           <hr style={{ borderColor: "var(--border-color)", margin: "20px 0" }} />
           <h2>Legacy subscription billing</h2>

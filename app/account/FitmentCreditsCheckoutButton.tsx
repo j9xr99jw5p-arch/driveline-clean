@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 export function FitmentCreditsCheckoutButton({
-  label = "Get 2 Premium Checks",
+  label = "Get 2 more checks",
   className = "button primary full"
 }: {
   label?: string;

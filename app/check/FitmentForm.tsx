@@ -86,6 +86,7 @@ export function FitmentForm({
   const canDescribe = Boolean(
     vehicle.year && vehicle.make && vehicle.model && description.plannedChanges.trim() && description.usage.trim()
   );
+  const canRunCheck = freeChecks.canRunFreeCheck || entitlement.canRunPremiumCheck;
 
   const draftReady = useMemo(() => {
     return findMissingSpecs(draftToSpecs(draft)).length === 0;
@@ -101,26 +102,19 @@ export function FitmentForm({
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-    const mode = submitter?.value === "premium" ? "premium" : "free";
 
     if (!canDescribe) {
       setStatus("Pick your year, make, and model, then tell us what you want to do and how you use the truck.");
       return;
     }
 
-    if (mode === "free" && !freeChecks.canRunFreeCheck) {
-      setStatus("You’ve used your 3 free fitment checks. Get 2 full reports for $14.");
+    if (!canRunCheck) {
+      setStatus("You’ve used your 3 free fitment checks. Get 2 more checks for $14.");
       return;
     }
 
-    if (mode === "premium" && !entitlement.isAuthenticated) {
+    if (!freeChecks.canRunFreeCheck && !entitlement.isAuthenticated) {
       router.push("/account?auth=required");
-      return;
-    }
-
-    if (mode === "premium" && !entitlement.canRunPremiumCheck) {
-      setStatus("You do not have any premium checks remaining. Get two premium checks to unlock the full report.");
       return;
     }
 
@@ -131,7 +125,7 @@ export function FitmentForm({
       const specs = await resolveSpecs();
       if (!specs) return;
 
-      await generateReport(mode, specs);
+      await generateReport(specs);
     } catch (error) {
       console.error("Fitment check failed", error);
       setStatus(error instanceof Error ? error.message : genericError);
@@ -205,29 +199,25 @@ export function FitmentForm({
     return nextDraft;
   }
 
-  async function generateReport(mode: "free" | "premium", specs: ExtractedSpecs) {
-    setStatus(mode === "premium" ? "Generating premium fitment report..." : "Generating your fitment check...");
+  async function generateReport(specs: ExtractedSpecs) {
+    setStatus("Building your fitment report...");
 
     const input = buildFitmentInput(vehicle, description, specs);
     const deterministicReport = assessFitment(input);
-    let normalizedAiExplanation = null;
-
-    if (mode === "premium") {
-      const aiResult = await callFitmentAi({
-        input,
-        deterministicReport: {
-          ...deterministicReport,
-          premiumWarnings: buildPremiumWarnings(input, deterministicReport),
-          premiumInsights: buildPremiumFitmentInsights(input, deterministicReport)
-        }
-      });
-
-      if (!aiResult.report) {
-        setStatus(aiResult.notice ?? "We’re having trouble generating the premium AI report right now. No premium check was used.");
-        return;
+    const aiResult = await callFitmentAi({
+      input,
+      deterministicReport: {
+        ...deterministicReport,
+        premiumWarnings: buildPremiumWarnings(input, deterministicReport),
+        premiumInsights: buildPremiumFitmentInsights(input, deterministicReport)
       }
+    });
+    const normalizedAiExplanation = aiResult.report
+      ? normalizeAiExplanation(aiResult.report, deterministicReport)
+      : normalizeAiExplanation(null, deterministicReport);
 
-      normalizedAiExplanation = normalizeAiExplanation(aiResult.report, deterministicReport);
+    if (aiResult.notice) {
+      sessionStorage.setItem("drivelineReportNotice", aiResult.notice);
     }
 
     const response = await fetch("/api/fitment/assess", {
@@ -235,7 +225,6 @@ export function FitmentForm({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         input,
-        mode,
         requestId: crypto.randomUUID(),
         aiExplanation: normalizedAiExplanation
       })
@@ -380,17 +369,8 @@ export function FitmentForm({
         ) : null}
 
         <div className="check-actions">
-          <button className="button full" type="submit" name="mode" value="free" disabled={isWorking || !canDescribe || !freeChecks.canRunFreeCheck}>
-            {isWorking ? "Working..." : "Get Basic Result - Free"}
-          </button>
-          <button
-            className="button primary full"
-            type="submit"
-            name="mode"
-            value="premium"
-            disabled={isWorking || !canDescribe || !entitlement.canRunPremiumCheck}
-          >
-            {isWorking ? "Working..." : "Use 1 Premium Check"}
+          <button className="button primary full" type="submit" disabled={isWorking || !canDescribe || !canRunCheck}>
+            {isWorking ? "Working..." : "Run Fitment Check"}
           </button>
         </div>
 
@@ -398,19 +378,34 @@ export function FitmentForm({
           {!canDescribe
             ? "Pick your year, make, and model, then tell us your plan and how you use the truck. "
             : ""}
-          {freeChecks.canRunFreeCheck
-            ? `${freeChecks.remaining} of ${freeChecks.limit} free checks remaining.`
-            : "You’ve used your 3 free checks. Get 2 full reports for $14."}
+          {checkHint(freeChecks, entitlement)}
         </p>
       </form>
 
       {status ? <p className="verify-status">{status}</p> : null}
-      <PremiumCard entitlement={entitlement} isCheckingOut={isCheckingOut} onCheckout={startCheckout} />
+      {!canRunCheck ? (
+        <MoreChecksCard entitlement={entitlement} isCheckingOut={isCheckingOut} onCheckout={startCheckout} />
+      ) : null}
     </>
   );
 }
 
-function PremiumCard({
+function checkHint(
+  freeChecks: FitmentFormFreeChecks,
+  entitlement: FitmentFormEntitlement
+) {
+  if (freeChecks.canRunFreeCheck) {
+    return `${freeChecks.remaining} of ${freeChecks.limit} free checks remaining. Same full report every time.`;
+  }
+
+  if (entitlement.canRunPremiumCheck) {
+    return `${entitlement.premiumChecksRemaining} paid ${entitlement.premiumChecksRemaining === 1 ? "check" : "checks"} remaining.`;
+  }
+
+  return "You’ve used your 3 free checks. Get 2 more for $14.";
+}
+
+function MoreChecksCard({
   entitlement,
   isCheckingOut,
   onCheckout
@@ -421,15 +416,15 @@ function PremiumCard({
 }) {
   return (
     <div className="check-premium-card">
-      <p className="eyebrow">Premium access</p>
-      <h3>Two Premium Fitment Checks</h3>
-      <p className="muted">$14 one-time. Includes two full fitment reports and Verified Builds access under the current access policy.</p>
+      <p className="eyebrow">Need another check?</p>
+      <h3>Two more fitment checks</h3>
+      <p className="muted">$14 one-time. Same full report, including verified-build matches. Also unlocks the verified builds library.</p>
       <div className="spec-row">
-        <span className="muted">Premium checks remaining</span>
+        <span className="muted">Paid checks remaining</span>
         <strong>{entitlement.premiumChecksRemaining}</strong>
       </div>
       <button className="button full" type="button" onClick={onCheckout} disabled={isCheckingOut}>
-        {isCheckingOut ? "Opening checkout..." : "Get 2 Premium Checks"}
+        {isCheckingOut ? "Opening checkout..." : "Get 2 more checks"}
       </button>
     </div>
   );

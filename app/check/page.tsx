@@ -6,11 +6,10 @@ import { getVehicleOptions } from "@/lib/vehicleOptions.server";
 export const dynamic = "force-dynamic";
 
 export default async function CheckPage() {
-  const entitlement = await getFitmentEntitlementForCurrentUser();
-  const purchased = entitlement.canRunPremiumCheck || entitlement.premiumBuildAccess;
-  const [vehicleOptions, freeChecks] = await Promise.all([
+  const [entitlement, vehicleOptions, freeChecks] = await Promise.all([
+    getFitmentEntitlementForCurrentUser(),
     getVehicleOptions(),
-    getFreeFitmentCheckQuota({ purchased })
+    getFreeFitmentCheckQuota()
   ]);
 
   return (
@@ -18,8 +17,7 @@ export default async function CheckPage() {
       <section className="verify-intro">
         <h1>Check Your Fitment Before You Build</h1>
         <p className="verify-tagline">
-          Tell us about your truck and what you have in mind. Driveline reads it and returns a plain-English report on
-          rubbing, trimming, clearance, and daily drivability.
+          Tell us about your truck and what you have in mind. Driveline reads it, scores clearance, and matches it against real verified builds.
         </p>
       </section>
 

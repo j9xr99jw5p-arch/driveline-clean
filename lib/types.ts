@@ -78,7 +78,24 @@ export type FitmentReport = {
   recommendations: string[];
   premiumWarnings?: string[];
   premiumInsights?: PremiumFitmentInsights | null;
+  matchedBuilds?: MatchedVerifiedBuild[];
   aiExplanation?: FitmentAiReport | null;
+};
+
+export type MatchedVerifiedBuild = {
+  id: string;
+  title: string;
+  photoUrl: string | null;
+  photoAlt: string | null;
+  tireSize: string;
+  wheel: string;
+  lift: string;
+  rubbing: string;
+  trimming: string;
+  bodyMountChop: string;
+  risk: FitmentRisk | null;
+  notes: string | null;
+  closeMatch: boolean;
 };
 
 export type PremiumFitmentInsights = {

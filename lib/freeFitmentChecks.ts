@@ -27,9 +27,7 @@ export function emptyFreeFitmentCheckQuota(): FreeFitmentCheckQuota {
   };
 }
 
-export async function getFreeFitmentCheckQuota(options?: { purchased?: boolean }): Promise<FreeFitmentCheckQuota> {
-  if (options?.purchased) return emptyFreeFitmentCheckQuota();
-
+export async function getFreeFitmentCheckQuota(): Promise<FreeFitmentCheckQuota> {
   const signedInUsed = await readSignedInFreeChecksUsed();
   const cookieUsed = await readFreeCheckCookie();
   const used = Math.max(signedInUsed ?? 0, cookieUsed);
@@ -43,11 +41,7 @@ export async function getFreeFitmentCheckQuota(options?: { purchased?: boolean }
   };
 }
 
-export async function consumeFreeFitmentCheck(options?: { purchased?: boolean }): Promise<FreeFitmentCheckQuota & { ok: boolean }> {
-  if (options?.purchased) {
-    return { ok: true, ...emptyFreeFitmentCheckQuota() };
-  }
-
+export async function consumeFreeFitmentCheck(): Promise<FreeFitmentCheckQuota & { ok: boolean }> {
   const current = await getFreeFitmentCheckQuota();
   if (!current.canRunFreeCheck) {
     return { ok: false, ...current };

@@ -9,7 +9,7 @@ import {
   loadFitmentResult,
   toShortParagraphs
 } from "@/lib/reportRenderer";
-import type { StoredFitmentResult } from "@/lib/types";
+import type { MatchedVerifiedBuild, StoredFitmentResult } from "@/lib/types";
 
 function AdviceBox({
   title,
@@ -60,10 +60,10 @@ export default function ResultsPage() {
 
   const { input, report } = result;
   const advice = normalizeAiExplanation(report.aiExplanation, report);
-  const isPremium = report.accessTier === "premium";
-  const premiumInsights = report.premiumInsights;
-  const displayedWarnings = (isPremium ? report.premiumWarnings ?? [] : report.warnings)
-    .filter((warning) => warning !== premiumInsights?.trimDetail)
+  const insights = report.premiumInsights;
+  const matchedBuilds = report.matchedBuilds ?? [];
+  const displayedWarnings = (report.premiumWarnings?.length ? report.premiumWarnings : report.warnings)
+    .filter((warning) => warning !== insights?.trimDetail)
     .slice(0, 3);
   const vehicleLine = [input.year, input.make, input.model, input.trim].filter(Boolean).join(" ");
   const cabBed = [input.cab, input.bed].filter((value) => value && value !== "Not specified").join(" / ");
@@ -129,75 +129,67 @@ export default function ResultsPage() {
           </article>
         </div>
 
-        {isPremium ? (
-          <>
-            <div className="fitment-report-grid">
-              <AdviceBox title="Daily driving" text={advice.dailyDrivingAdvice} />
-              <AdviceBox title="Off-road" text={advice.offRoadAdvice} />
-            </div>
+        <div className="fitment-report-grid">
+          <AdviceBox title="Daily driving" text={advice.dailyDrivingAdvice} />
+          <AdviceBox title="Off-road" text={advice.offRoadAdvice} />
+        </div>
 
-            <AdviceBox title="Before you buy" text={advice.beforeYouCommit} />
+        <AdviceBox title="Before you buy" text={advice.beforeYouCommit} />
 
-            {displayedWarnings.length ? (
-              <article className="card fitment-box">
-                <h2>Watchouts</h2>
-                <ul className="fitment-watchouts">
-                  {displayedWarnings.map((warning) => (
-                    <li key={warning}>{firstSentence(warning)}</li>
-                  ))}
-                </ul>
-              </article>
-            ) : null}
-
-            {premiumInsights ? (
-              <div className="fitment-report-grid">
-                <article className="card fitment-box">
-                  <h2>A cleaner option</h2>
-                  {premiumInsights.alternativeSetup ? (
-                    <>
-                      <p>{firstSentence(premiumInsights.alternativeSetup.summary)}</p>
-                      <div className="spec-row">
-                        <span className="muted">Suggested wheel</span>
-                        <strong>{premiumInsights.alternativeSetup.wheelWidth} in, {premiumInsights.alternativeSetup.wheelOffset}mm</strong>
-                      </div>
-                    </>
-                  ) : (
-                    <p>No nearby offset or width change lowered the risk in this check.</p>
-                  )}
-                </article>
-
-                <article className="card fitment-box">
-                  <h2>Verified builds</h2>
-                  <p>{firstSentence(premiumInsights.verifiedBuildMatchStatus)}</p>
-                </article>
-              </div>
-            ) : null}
-
-            {premiumInsights?.scenarioBreakdown?.length ? (
-              <article className="card fitment-box">
-                <h2>Where it can rub</h2>
-                {premiumInsights.scenarioBreakdown.map((scenario) => (
-                  <div className="spec-row" key={scenario.scenario}>
-                    <span className="muted">{scenario.scenario}</span>
-                    <strong className={`pill ${scenario.risk}`}>{scenario.risk}</strong>
-                  </div>
-                ))}
-                {premiumInsights.trimDetail ? (
-                  <p className="fine" style={{ marginTop: 12 }}>{firstSentence(premiumInsights.trimDetail)}</p>
-                ) : null}
-              </article>
-            ) : null}
-          </>
-        ) : (
-          <article className="card fitment-box fitment-upgrade">
-            <h2>Want the full read?</h2>
-            <p>Premium adds daily-driving notes, a cleaner alternative, and verified-build context.</p>
-            <div className="actions">
-              <Link className="button primary" href="/pricing">Get 2 Premium Checks</Link>
-              <Link className="button" href="/builds">Browse Verified Builds</Link>
-            </div>
+        {displayedWarnings.length ? (
+          <article className="card fitment-box">
+            <h2>Watchouts</h2>
+            <ul className="fitment-watchouts">
+              {displayedWarnings.map((warning) => (
+                <li key={warning}>{firstSentence(warning)}</li>
+              ))}
+            </ul>
           </article>
-        )}
+        ) : null}
+
+        {insights ? (
+          <div className="fitment-report-grid">
+            <article className="card fitment-box">
+              <h2>A cleaner option</h2>
+              {insights.alternativeSetup ? (
+                <>
+                  <p>{firstSentence(insights.alternativeSetup.summary)}</p>
+                  <div className="spec-row">
+                    <span className="muted">Suggested wheel</span>
+                    <strong>{insights.alternativeSetup.wheelWidth} in, {insights.alternativeSetup.wheelOffset}mm</strong>
+                  </div>
+                </>
+              ) : (
+                <p>No nearby offset or width change lowered the risk in this check.</p>
+              )}
+            </article>
+
+            <article className="card fitment-box">
+              <h2>Where it can rub</h2>
+              {insights.scenarioBreakdown.map((scenario) => (
+                <div className="spec-row" key={scenario.scenario}>
+                  <span className="muted">{scenario.scenario}</span>
+                  <strong className={`pill ${scenario.risk}`}>{scenario.risk}</strong>
+                </div>
+              ))}
+              {insights.trimDetail ? (
+                <p className="fine" style={{ marginTop: 12 }}>{firstSentence(insights.trimDetail)}</p>
+              ) : null}
+            </article>
+          </div>
+        ) : null}
+
+        <article className="card fitment-box">
+          <h2>Verified builds like yours</h2>
+          <p>{insights?.verifiedBuildMatchStatus ?? "Verified-build matches are included with every check."}</p>
+          {matchedBuilds.length ? (
+            <div className="fitment-match-list">
+              {matchedBuilds.map((build) => (
+                <MatchedBuildCard key={build.id} build={build} />
+              ))}
+            </div>
+          ) : null}
+        </article>
 
         <footer className="fitment-report-foot">
           <p className="fine">{advice.disclaimer}</p>
@@ -205,5 +197,35 @@ export default function ResultsPage() {
         </footer>
       </div>
     </section>
+  );
+}
+
+function MatchedBuildCard({ build }: { build: MatchedVerifiedBuild }) {
+  return (
+    <article className="fitment-match">
+      {build.photoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={build.photoUrl} alt={build.photoAlt ?? build.title} />
+      ) : (
+        <div className="fitment-match-empty">No photo</div>
+      )}
+      <div>
+        <div className="fitment-match-head">
+          <strong>{build.title}</strong>
+          {build.risk ? <span className={`pill ${build.risk}`}>{build.risk} risk</span> : null}
+        </div>
+        <p>{build.wheel}</p>
+        <p>{build.lift}</p>
+        <div className="spec-row">
+          <span className="muted">Rubbing</span>
+          <strong>{build.rubbing}</strong>
+        </div>
+        <div className="spec-row">
+          <span className="muted">Trimming</span>
+          <strong>{build.trimming}</strong>
+        </div>
+        {build.notes ? <p className="fine">{build.notes}</p> : null}
+      </div>
+    </article>
   );
 }
