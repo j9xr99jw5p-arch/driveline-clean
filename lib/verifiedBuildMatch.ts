@@ -88,7 +88,7 @@ async function loadCloseMatches(supabase: ReturnType<typeof createSupabaseAdminC
     return [];
   }
 
-  return (data ?? []) as VerifiedBuildRow[];
+  return (data ?? []) as unknown as VerifiedBuildRow[];
 }
 
 async function loadRelatedTruckBuilds(
@@ -115,7 +115,7 @@ async function loadRelatedTruckBuilds(
     return [];
   }
 
-  return ((data ?? []) as VerifiedBuildRow[]).slice(0, 3);
+  return ((data ?? []) as unknown as VerifiedBuildRow[]).slice(0, 3);
 }
 
 function toMatchedBuild(
