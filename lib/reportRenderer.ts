@@ -1,13 +1,20 @@
-import type { FitmentInput, FitmentReport, StoredFitmentResult } from "./types";
+import type { FitmentInput, FitmentReport, FitmentVisualization, StoredFitmentResult } from "./types";
 
 export const FITMENT_RESULT_STORAGE_KEY = "driveline.latestFitmentResult";
 export const TRUCK_PROFILE_STORAGE_KEY = "driveline.truckProfile";
 
-export function createStoredFitmentResult(input: FitmentInput, report: FitmentReport): StoredFitmentResult {
+export function createStoredFitmentResult(
+  input: FitmentInput,
+  report: FitmentReport,
+  visualization?: FitmentVisualization
+): StoredFitmentResult {
   return {
     input,
     report,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    generatedImageUrl: visualization?.generatedImageUrl || null,
+    sourcePhotoUrls: visualization?.sourcePhotoUrls?.length ? visualization.sourcePhotoUrls : undefined,
+    alreadyModified: visualization?.alreadyModified ?? false
   };
 }
 
@@ -56,9 +63,12 @@ export function getFitmentSummaryRows(report: FitmentReport) {
   ];
 }
 
-export function saveFitmentResult(input: FitmentInput, report: FitmentReport) {
+export function saveFitmentResult(input: FitmentInput, report: FitmentReport, visualization?: FitmentVisualization) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(FITMENT_RESULT_STORAGE_KEY, JSON.stringify(createStoredFitmentResult(input, report)));
+  window.localStorage.setItem(
+    FITMENT_RESULT_STORAGE_KEY,
+    JSON.stringify(createStoredFitmentResult(input, report, visualization))
+  );
 }
 
 export function loadFitmentResult(): StoredFitmentResult | null {

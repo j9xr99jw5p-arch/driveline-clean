@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { VehicleSelect, type VehicleSelection } from "@/components/VehicleSelect";
 import { assessFitment, buildPremiumFitmentInsights, buildPremiumWarnings, normalizeFitmentInput } from "@/lib/fitment";
@@ -15,7 +15,9 @@ import {
   type FitmentDescription,
   type SpecField
 } from "@/lib/fitmentExtraction";
+import { emptyFitmentVisualizeResult, type FitmentVisualizeResult } from "@/lib/fitmentVisualize";
 import { saveFitmentResult, saveTruckProfile } from "@/lib/reportRenderer";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { FitmentInput, FitmentReport } from "@/lib/types";
 import type { VehicleOptions } from "@/lib/vehicleOptions";
 
@@ -58,6 +60,12 @@ const emptyDraft: SpecDraft = {
 };
 
 const genericError = "We’re having trouble generating your fitment report right now.";
+const maxPhotos = 3;
+const maxPhotoBytes = 8 * 1024 * 1024;
+const fitmentPhotosBucket =
+  process.env.NEXT_PUBLIC_SUPABASE_FITMENT_PHOTOS_BUCKET ||
+  process.env.NEXT_PUBLIC_SUPABASE_BUILD_PHOTOS_BUCKET ||
+  "verified-build-photos";
 
 export function FitmentForm({
   entitlement,
@@ -76,6 +84,8 @@ export function FitmentForm({
   const [vehicle, setVehicle] = useState<VehicleSelection>({ year: "", make: "", model: "" });
   const [description, setDescription] = useState<FitmentDescription>(emptyDescription);
   const [draft, setDraft] = useState<SpecDraft>(emptyDraft);
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [missingFields, setMissingFields] = useState<SpecField[]>([]);
   const [interpretation, setInterpretation] = useState<string | null>(null);
   const [extractedKey, setExtractedKey] = useState<string | null>(null);
@@ -83,8 +93,19 @@ export function FitmentForm({
   const tacomaCalibrated = isTacomaCalibrated(vehicle.make, vehicle.model);
   const descriptionKey = JSON.stringify({ vehicle, description });
 
+  useEffect(() => {
+    const urls = photos.map((file) => URL.createObjectURL(file));
+    setPhotoPreviews(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, [photos]);
+
   const canDescribe = Boolean(
-    vehicle.year && vehicle.make && vehicle.model && description.plannedChanges.trim() && description.usage.trim()
+    vehicle.year &&
+    vehicle.make &&
+    vehicle.model &&
+    photos.length >= 1 &&
+    description.plannedChanges.trim() &&
+    description.usage.trim()
   );
   const canRunCheck = freeChecks.canRunFreeCheck || entitlement.canRunPremiumCheck;
 
@@ -104,7 +125,7 @@ export function FitmentForm({
     event.preventDefault();
 
     if (!canDescribe) {
-      setStatus("Pick your year, make, and model, then tell us what you want to do and how you use the truck.");
+      setStatus("Add 1 to 3 photos, pick your year, make, and model, then tell us what you want to do and how you use the truck.");
       return;
     }
 
@@ -122,10 +143,11 @@ export function FitmentForm({
     setStatus(null);
 
     try {
-      const specs = await resolveSpecs();
+      setStatus("Reading your build...");
+      const [photoUrls, specs] = await Promise.all([uploadCheckPhotos(photos), resolveSpecs()]);
       if (!specs) return;
 
-      await generateReport(specs);
+      await generateReport(specs, photoUrls);
     } catch (error) {
       console.error("Fitment check failed", error);
       setStatus(error instanceof Error ? error.message : genericError);
@@ -199,19 +221,24 @@ export function FitmentForm({
     return nextDraft;
   }
 
-  async function generateReport(specs: ExtractedSpecs) {
-    setStatus("Building your fitment report...");
-
+  async function generateReport(specs: ExtractedSpecs, photoUrls: string[]) {
     const input = buildFitmentInput(vehicle, description, specs);
     const deterministicReport = assessFitment(input);
-    const aiResult = await callFitmentAi({
+    const reportInput = {
       input,
       deterministicReport: {
         ...deterministicReport,
         premiumWarnings: buildPremiumWarnings(input, deterministicReport),
         premiumInsights: buildPremiumFitmentInsights(input, deterministicReport)
       }
-    });
+    };
+
+    setStatus(photoUrls.length ? "Rendering your truck..." : "Building your fitment report...");
+
+    const [aiResult, visualization] = await Promise.all([
+      callFitmentAi(reportInput),
+      visualizeTruck(photoUrls, input)
+    ]);
     const normalizedAiExplanation = aiResult.report
       ? normalizeAiExplanation(aiResult.report, deterministicReport)
       : normalizeAiExplanation(null, deterministicReport);
@@ -219,6 +246,8 @@ export function FitmentForm({
     if (aiResult.notice) {
       sessionStorage.setItem("drivelineReportNotice", aiResult.notice);
     }
+
+    setStatus("Building your fitment report...");
 
     const response = await fetch("/api/fitment/assess", {
       method: "POST",
@@ -237,7 +266,7 @@ export function FitmentForm({
       sessionStorage.setItem("drivelineReportNotice", "We’re having trouble saving your garage details right now. Your fitment report is still available.");
     }
 
-    saveFitmentResult(input, payload.report as FitmentReport);
+    saveFitmentResult(input, payload.report as FitmentReport, visualization);
     saveTruckProfile(input);
     router.push("/results");
   }
@@ -275,6 +304,41 @@ export function FitmentForm({
   return (
     <>
       <form className="verify-form" onSubmit={onSubmit}>
+        <label className="field">
+          <span>Photos of your truck</span>
+          <input
+            name="check-photos"
+            type="file"
+            accept="image/*"
+            multiple
+            required={photos.length === 0}
+            onChange={(event) => {
+              const next = onPhotosSelected(event.target.files, photos);
+              setPhotos(next.files);
+              if (next.error) setStatus(next.error);
+              event.target.value = "";
+            }}
+          />
+        </label>
+        {photos.length ? (
+          <div className="check-photo-grid">
+            {photos.map((file, index) => (
+              <figure className="check-photo-tile" key={`${file.name}-${file.size}-${index}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photoPreviews[index]} alt={`Truck photo ${index + 1}`} />
+                <button
+                  className="check-photo-remove"
+                  type="button"
+                  onClick={() => setPhotos((current) => current.filter((_, photoIndex) => photoIndex !== index))}
+                >
+                  Remove
+                </button>
+              </figure>
+            ))}
+          </div>
+        ) : null}
+        <p className="verify-hint">Add 1 to 3 clear photos. Front-quarter or side shots work best.</p>
+
         <VehicleSelect vehicleOptions={vehicleOptions} onChange={setVehicle} />
 
         <label className="field">
@@ -376,7 +440,7 @@ export function FitmentForm({
 
         <p className="verify-hint">
           {!canDescribe
-            ? "Pick your year, make, and model, then tell us your plan and how you use the truck. "
+            ? "Add 1 to 3 photos, pick your year, make, and model, then tell us your plan and how you use the truck. "
             : ""}
           {checkHint(freeChecks, entitlement)}
         </p>
@@ -497,4 +561,106 @@ function formatFieldList(fields: SpecField[]) {
   if (labels.length === 1) return labels[0];
   if (labels.length === 2) return `${labels[0]} or ${labels[1]}`;
   return `${labels.slice(0, -1).join(", ")}, or ${labels[labels.length - 1]}`;
+}
+
+function onPhotosSelected(fileList: FileList | null, current: File[]) {
+  const incoming = Array.from(fileList ?? []).filter((file) => file.type.startsWith("image/"));
+  if (!incoming.length) {
+    return { files: current, error: current.length ? null : "Choose a photo of your truck." };
+  }
+
+  const oversized = incoming.find((file) => file.size > maxPhotoBytes);
+  if (oversized) {
+    return { files: current, error: "Each photo needs to be under 8 MB." };
+  }
+
+  const merged = [...current];
+  for (const file of incoming) {
+    if (merged.length >= maxPhotos) break;
+    if (merged.some((existing) => existing.name === file.name && existing.size === file.size)) continue;
+    merged.push(file);
+  }
+
+  return {
+    files: merged,
+    error: current.length + incoming.length > maxPhotos ? "We kept the first 3 photos." : null
+  };
+}
+
+async function uploadCheckPhotos(files: File[]) {
+  if (!files.length) return [];
+
+  try {
+    const prepareResponse = await fetch("/api/fitment/photo-uploads", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        checkId: crypto.randomUUID(),
+        files: files.map((file) => ({
+          name: file.name,
+          type: file.type,
+          size: file.size
+        }))
+      })
+    });
+    const preparePayload = (await prepareResponse.json()) as {
+      uploads?: Array<{ path: string; token: string; publicUrl: string; bucket?: string }>;
+      bucket?: string;
+      error?: string;
+    };
+
+    if (!prepareResponse.ok || !preparePayload.uploads?.length) {
+      console.error("Fitment photo upload setup failed", preparePayload);
+      return [];
+    }
+
+    const supabase = createSupabaseBrowserClient();
+    const bucket = preparePayload.bucket || fitmentPhotosBucket;
+    const urls: string[] = [];
+
+    for (const [index, upload] of preparePayload.uploads.entries()) {
+      const file = files[index];
+      if (!file) continue;
+
+      const { error } = await supabase.storage.from(bucket).uploadToSignedUrl(upload.path, upload.token, file);
+      if (error) {
+        console.error("Fitment photo upload failed", error);
+        continue;
+      }
+
+      urls.push(upload.publicUrl);
+    }
+
+    return urls;
+  } catch (error) {
+    console.error("Fitment photo upload crashed", error);
+    return [];
+  }
+}
+
+async function visualizeTruck(photoUrls: string[], input: FitmentInput): Promise<FitmentVisualizeResult> {
+  if (!photoUrls.length) {
+    return { ...emptyFitmentVisualizeResult, sourcePhotoUrls: photoUrls };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 55000);
+    const response = await fetch("/api/fitment/visualize", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ photoUrls, input }),
+      signal: controller.signal
+    }).finally(() => window.clearTimeout(timeout));
+    const payload = (await response.json()) as FitmentVisualizeResult;
+    return {
+      generatedImageUrl: payload.generatedImageUrl || null,
+      sourcePhotoUrls: payload.sourcePhotoUrls?.length ? payload.sourcePhotoUrls : photoUrls,
+      alreadyModified: payload.alreadyModified === true,
+      vision: payload.vision ?? null
+    };
+  } catch (error) {
+    console.error("Fitment visualize request failed", error);
+    return { ...emptyFitmentVisualizeResult, sourcePhotoUrls: photoUrls };
+  }
 }

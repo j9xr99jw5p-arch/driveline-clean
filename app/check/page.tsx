@@ -17,7 +17,7 @@ export default async function CheckPage() {
       <section className="verify-intro">
         <h1>Check Your Fitment Before You Build</h1>
         <p className="verify-tagline">
-          Tell us about your truck and what you have in mind. Driveline reads it, scores clearance, and matches it against real verified builds.
+          Upload 1 to 3 photos of your truck, tell us what you want done, and we’ll show an estimated look plus a full fitment report matched against verified builds.
         </p>
       </section>
 

@@ -13,11 +13,17 @@ const buildPhotosBucket = process.env.NEXT_PUBLIC_SUPABASE_BUILD_PHOTOS_BUCKET |
 
 const attachmentMessage = "Please add at least one photo of your build.";
 
-export function SubmitBuildForm({ vehicleOptions = emptyVehicleOptions }: { vehicleOptions?: VehicleOptions }) {
+export function SubmitBuildForm({
+  vehicleOptions = emptyVehicleOptions,
+  initialVehicle
+}: {
+  vehicleOptions?: VehicleOptions;
+  initialVehicle?: VehicleSelection;
+}) {
   const router = useRouter();
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [vehicle, setVehicle] = useState<VehicleSelection>({ year: "", make: "", model: "" });
+  const [vehicle, setVehicle] = useState<VehicleSelection>(initialVehicle ?? { year: "", make: "", model: "" });
   const [wheelSetup, setWheelSetup] = useState("");
   const [tireSetup, setTireSetup] = useState("");
   const [suspensionSetup, setSuspensionSetup] = useState("");
@@ -205,7 +211,7 @@ export function SubmitBuildForm({ vehicleOptions = emptyVehicleOptions }: { vehi
 
   return (
     <form className="verify-form" onSubmit={onSubmit} encType="multipart/form-data">
-      <VehicleSelect vehicleOptions={vehicleOptions} onChange={setVehicle} />
+      <VehicleSelect vehicleOptions={vehicleOptions} initial={initialVehicle} onChange={setVehicle} />
 
       <label className="field">
         <span>Wheel setup</span>

@@ -125,6 +125,15 @@ export type StoredFitmentResult = {
   input: FitmentInput;
   report: FitmentReport;
   createdAt: string;
+  generatedImageUrl?: string | null;
+  sourcePhotoUrls?: string[];
+  alreadyModified?: boolean;
+};
+
+export type FitmentVisualization = {
+  generatedImageUrl?: string | null;
+  sourcePhotoUrls?: string[];
+  alreadyModified?: boolean;
 };
 
 export type VehicleConfiguration = {

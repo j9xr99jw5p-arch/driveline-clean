@@ -1,12 +1,19 @@
 import { getVehicleOptions } from "@/lib/vehicleOptions.server";
 import { SubmitBuildForm } from "./SubmitBuildForm";
 
-// Vehicle reference data changes only when the sync-vehicle-options function
-// runs, so the rendered page can be cached for a day.
 export const revalidate = 86400;
 
-export default async function SubmitBuildPage() {
-  const vehicleOptions = await getVehicleOptions();
+export default async function SubmitBuildPage({
+  searchParams
+}: {
+  searchParams: Promise<{ year?: string; make?: string; model?: string }>;
+}) {
+  const [vehicleOptions, params] = await Promise.all([getVehicleOptions(), searchParams]);
+  const initialVehicle = {
+    year: params.year?.trim() ?? "",
+    make: params.make?.trim() ?? "",
+    model: params.model?.trim() ?? ""
+  };
 
   return (
     <div className="section verify-page">
@@ -17,7 +24,10 @@ export default async function SubmitBuildPage() {
         </p>
       </section>
 
-      <SubmitBuildForm vehicleOptions={vehicleOptions} />
+      <SubmitBuildForm
+        vehicleOptions={vehicleOptions}
+        initialVehicle={initialVehicle.year || initialVehicle.make || initialVehicle.model ? initialVehicle : undefined}
+      />
     </div>
   );
 }

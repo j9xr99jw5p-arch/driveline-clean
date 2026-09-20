@@ -77,10 +77,28 @@ export default function ResultsPage() {
     { label: "Use", value: formatFitmentLabel(input.useCase) },
     { label: "Rear weight", value: formatFitmentLabel(input.rearLoad) }
   ].filter((fact): fact is { label: string; value: string } => Boolean(fact));
+  const submitBuildHref = `/submit-build?year=${encodeURIComponent(String(input.year))}&make=${encodeURIComponent(input.make ?? "")}&model=${encodeURIComponent(input.model ?? "")}`;
 
   return (
     <section className="band">
       <div className="section fitment-report">
+        {result.generatedImageUrl ? (
+          <figure className="fitment-visual">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={result.generatedImageUrl} alt={`Estimated look for ${vehicleLine}`} />
+            <figcaption>Estimated look — not a guarantee</figcaption>
+          </figure>
+        ) : null}
+
+        {result.alreadyModified ? (
+          <article className="card fitment-box fitment-verify-card">
+            <p className="eyebrow">Already built?</p>
+            <h2>This truck already looks built. Want it verified?</h2>
+            <p>If this is your current setup, submit it so other owners can learn from a real build.</p>
+            <Link className="button primary" href={submitBuildHref}>Get Verified</Link>
+          </article>
+        ) : null}
+
         <header className="fitment-report-hero">
           <p className="eyebrow">Fitment Results</p>
           <span className={`pill ${report.rubbingRisk}`}>{report.rubbingRisk} risk</span>

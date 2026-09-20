@@ -4305,6 +4305,72 @@ p {
   text-align: center;
 }
 
+.fitment-visual {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--bg-elevated, #111);
+}
+
+.fitment-visual img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+.fitment-visual figcaption {
+  padding: 0.7rem 1rem 0.9rem;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+.fitment-verify-card {
+  text-align: left;
+}
+
+.fitment-verify-card .button {
+  justify-self: start;
+  margin-top: 0.35rem;
+}
+
+.check-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.check-photo-tile {
+  position: relative;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-elevated, #111);
+}
+
+.check-photo-tile img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.check-photo-remove {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.4rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  background: rgba(0, 0, 0, 0.72);
+  color: white;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
 .fitment-report-hero h1 {
   margin: 0;
   max-width: 34rem;
@@ -4391,6 +4457,10 @@ p {
 
   .fitment-match {
     grid-template-columns: 1fr;
+  }
+
+  .check-photo-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   emptyVehicleOptions,
   fallbackModelsByMake,
@@ -22,17 +22,20 @@ export type VehicleSelection = {
 export function VehicleSelect({
   vehicleOptions = emptyVehicleOptions,
   onChange,
-  required = true
+  required = true,
+  initial
 }: {
   vehicleOptions?: VehicleOptions;
   onChange: (selection: VehicleSelection) => void;
   required?: boolean;
+  initial?: Partial<VehicleSelection>;
 }) {
-  const [year, setYear] = useState("");
-  const [make, setMake] = useState("");
-  const [customMake, setCustomMake] = useState("");
-  const [model, setModel] = useState("");
-  const [customModel, setCustomModel] = useState("");
+  const starting = initialVehicleState(vehicleOptions, initial);
+  const [year, setYear] = useState(starting.year);
+  const [make, setMake] = useState(starting.make);
+  const [customMake, setCustomMake] = useState(starting.customMake);
+  const [model, setModel] = useState(starting.model);
+  const [customModel, setCustomModel] = useState(starting.customModel);
 
   const usesReferenceData = vehicleOptions.years.length > 0;
 
@@ -76,6 +79,12 @@ export function VehicleSelect({
 
     onChange({ year: next.year, make: resolvedMake, model: resolvedModel });
   }
+
+  useEffect(() => {
+    emit({ year, make, customMake, model, customModel });
+    // Sync the parent's vehicle state if this selector was prefilled.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function onYearChange(value: string) {
     setYear(value);
@@ -192,4 +201,29 @@ export function VehicleSelect({
       </label>
     </>
   );
+}
+
+function initialVehicleState(vehicleOptions: VehicleOptions, initial?: Partial<VehicleSelection>) {
+  const year = initial?.year?.trim() ?? "";
+  const requestedMake = initial?.make?.trim() ?? "";
+  const requestedModel = initial?.model?.trim() ?? "";
+  const usesReferenceData = vehicleOptions.years.length > 0;
+  const makeOptions = usesReferenceData
+    ? vehicleOptions.makesByYear[year] ?? []
+    : Object.keys(fallbackModelsByMake);
+  const make = requestedMake && makeOptions.includes(requestedMake) ? requestedMake : requestedMake ? otherVehicleOption : "";
+  const customMake = make === otherVehicleOption ? requestedMake : "";
+  const modelChoices = make && make !== otherVehicleOption
+    ? usesReferenceData
+      ? vehicleOptions.modelsByYearMake[vehicleOptionsKey(year, make)] ?? []
+      : fallbackModelsByMake[make] ?? []
+    : [];
+  const model = requestedModel && modelChoices.includes(requestedModel)
+    ? requestedModel
+    : requestedModel
+      ? otherVehicleOption
+      : "";
+  const customModel = make === otherVehicleOption || model === otherVehicleOption ? requestedModel : "";
+
+  return { year, make, customMake, model, customModel };
 }
