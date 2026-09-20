@@ -4305,6 +4305,11 @@ p {
   text-align: center;
 }
 
+.fitment-visual-list {
+  display: grid;
+  gap: 1rem;
+}
+
 .fitment-visual {
   margin: 0;
   overflow: hidden;

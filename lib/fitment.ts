@@ -16,7 +16,8 @@ export function normalizeFitmentInput(values: Record<string, FormDataEntryValue 
     liftHeight: Number(values.liftHeight),
     useCase: String(values.useCase ?? ""),
     rearLoad: String(values.rearLoad ?? ""),
-    buildGoals: optionalString(values.buildGoals)
+    buildGoals: optionalString(values.buildGoals),
+    plannedChanges: optionalString(values.plannedChanges)
   };
 }
 

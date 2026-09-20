@@ -12,7 +12,12 @@ export function createStoredFitmentResult(
     input,
     report,
     createdAt: new Date().toISOString(),
-    generatedImageUrl: visualization?.generatedImageUrl || null,
+    generatedImageUrl: visualization?.generatedImageUrls?.[0] || visualization?.generatedImageUrl || null,
+    generatedImageUrls: visualization?.generatedImageUrls?.length
+      ? visualization.generatedImageUrls
+      : visualization?.generatedImageUrl
+        ? [visualization.generatedImageUrl]
+        : undefined,
     sourcePhotoUrls: visualization?.sourcePhotoUrls?.length ? visualization.sourcePhotoUrls : undefined,
     alreadyModified: visualization?.alreadyModified ?? false
   };

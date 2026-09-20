@@ -61,6 +61,7 @@ export type FitmentInput = {
   useCase: string;
   rearLoad: string;
   buildGoals?: string;
+  plannedChanges?: string;
 };
 
 export type FitmentReport = {
@@ -126,12 +127,14 @@ export type StoredFitmentResult = {
   report: FitmentReport;
   createdAt: string;
   generatedImageUrl?: string | null;
+  generatedImageUrls?: string[];
   sourcePhotoUrls?: string[];
   alreadyModified?: boolean;
 };
 
 export type FitmentVisualization = {
   generatedImageUrl?: string | null;
+  generatedImageUrls?: string[];
   sourcePhotoUrls?: string[];
   alreadyModified?: boolean;
 };

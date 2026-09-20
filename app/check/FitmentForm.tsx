@@ -510,6 +510,7 @@ function buildFitmentInput(vehicle: VehicleSelection, description: FitmentDescri
     liftHeight: specs.liftHeight,
     useCase: specs.useCase || "mixed",
     rearLoad: specs.rearLoad || "normal",
+    plannedChanges: description.plannedChanges.trim().slice(0, 800) || undefined,
     buildGoals: [description.buildGoals, description.usage, description.extraNotes]
       .map((part) => part.trim())
       .filter(Boolean)
@@ -645,7 +646,7 @@ async function visualizeTruck(photoUrls: string[], input: FitmentInput): Promise
 
   try {
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 55000);
+    const timeout = window.setTimeout(() => controller.abort(), 110000);
     const response = await fetch("/api/fitment/visualize", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -653,8 +654,14 @@ async function visualizeTruck(photoUrls: string[], input: FitmentInput): Promise
       signal: controller.signal
     }).finally(() => window.clearTimeout(timeout));
     const payload = (await response.json()) as FitmentVisualizeResult;
+    const generatedImageUrls = payload.generatedImageUrls?.length
+      ? payload.generatedImageUrls
+      : payload.generatedImageUrl
+        ? [payload.generatedImageUrl]
+        : [];
     return {
-      generatedImageUrl: payload.generatedImageUrl || null,
+      generatedImageUrl: generatedImageUrls[0] ?? null,
+      generatedImageUrls,
       sourcePhotoUrls: payload.sourcePhotoUrls?.length ? payload.sourcePhotoUrls : photoUrls,
       alreadyModified: payload.alreadyModified === true,
       vision: payload.vision ?? null

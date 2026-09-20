@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { findMatchingVerifiedBuilds } from "@/lib/verifiedBuildMatch";
 import {
   buildImageEditPrompt,
   buildVisionPrompt,
@@ -25,7 +24,6 @@ const fitmentPhotosBucket =
   "verified-build-photos";
 
 const maxPhotos = 3;
-const maxReferencePhotos = 2;
 const geminiEndpoint = "https://generativelanguage.googleapis.com/v1beta/models";
 
 type InlineImage = {
@@ -47,13 +45,14 @@ export async function POST(request: Request) {
       } satisfies FitmentVisualizeResult);
     }
 
-    const [vision, generatedImageUrl] = await Promise.all([
+    const [vision, generatedImageUrls] = await Promise.all([
       inspectPhotos(photoUrls),
-      loadReferencePhotoUrls(input).then((referenceUrls) => editTruckPhoto(photoUrls, referenceUrls, input))
+      editTruckPhotos(photoUrls, input)
     ]);
 
     return NextResponse.json({
-      generatedImageUrl,
+      generatedImageUrl: generatedImageUrls[0] ?? null,
+      generatedImageUrls,
       sourcePhotoUrls: photoUrls,
       alreadyModified: vision?.alreadyModified ?? false,
       vision
@@ -116,40 +115,31 @@ async function inspectPhotos(photoUrls: string[]): Promise<FitmentVisionResult |
   }
 }
 
-async function loadReferencePhotoUrls(input: FitmentInput) {
-  try {
-    const matches = await findMatchingVerifiedBuilds(input);
-    return matches.builds
-      .map((build) => build.photoUrl)
-      .filter((url): url is string => Boolean(url && /^https?:\/\//i.test(url)))
-      .slice(0, maxReferencePhotos);
-  } catch (error) {
-    console.error("Fitment visualize reference lookup failed:", error);
-    return [];
-  }
-}
-
-async function editTruckPhoto(photoUrls: string[], referenceUrls: string[], input: FitmentInput) {
+async function editTruckPhotos(photoUrls: string[], input: FitmentInput) {
   const apiKey = geminiKey();
   if (!apiKey) {
     console.error("Fitment image edit skipped: GEMINI_API_KEY is not set.");
-    return null;
+    return [];
   }
 
-  const images = [
-    ...(await fetchInlineImages(photoUrls, "truck")),
-    ...(await fetchInlineImages(referenceUrls, "reference"))
-  ].slice(0, 5);
+  const customerImages = await fetchInlineImages(photoUrls, "truck");
+  if (!customerImages.length) return [];
 
-  if (!images.length) return null;
+  const generated = await Promise.all(
+    customerImages.map((image) => editOneTruckPhoto(apiKey, image, input))
+  );
 
+  return generated.filter((url): url is string => Boolean(url));
+}
+
+async function editOneTruckPhoto(apiKey: string, customerImage: InlineImage, input: FitmentInput) {
   const body = {
     contents: [
       {
         role: "user",
         parts: [
-          { text: buildImageEditPrompt(input, referenceUrls.length) },
-          ...images.map((image) => ({ inline_data: { mime_type: image.mimeType, data: image.data } }))
+          { text: buildImageEditPrompt(input) },
+          { inline_data: { mime_type: customerImage.mimeType, data: customerImage.data } }
         ]
       }
     ],

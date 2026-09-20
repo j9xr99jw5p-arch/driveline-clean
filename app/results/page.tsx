@@ -78,16 +78,27 @@ export default function ResultsPage() {
     { label: "Rear weight", value: formatFitmentLabel(input.rearLoad) }
   ].filter((fact): fact is { label: string; value: string } => Boolean(fact));
   const submitBuildHref = `/submit-build?year=${encodeURIComponent(String(input.year))}&make=${encodeURIComponent(input.make ?? "")}&model=${encodeURIComponent(input.model ?? "")}`;
+  const generatedImages = result.generatedImageUrls?.length
+    ? result.generatedImageUrls
+    : result.generatedImageUrl
+      ? [result.generatedImageUrl]
+      : [];
 
   return (
     <section className="band">
       <div className="section fitment-report">
-        {result.generatedImageUrl ? (
-          <figure className="fitment-visual">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={result.generatedImageUrl} alt={`Estimated look for ${vehicleLine}`} />
-            <figcaption>Estimated look — not a guarantee</figcaption>
-          </figure>
+        {generatedImages.length ? (
+          <div className="fitment-visual-list">
+            {generatedImages.map((url, index) => (
+              <figure className="fitment-visual" key={url}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt={`Estimated look ${index + 1} for ${vehicleLine}`} />
+                {index === generatedImages.length - 1 ? (
+                  <figcaption>Estimated look — not a guarantee</figcaption>
+                ) : null}
+              </figure>
+            ))}
+          </div>
         ) : null}
 
         {result.alreadyModified ? (
