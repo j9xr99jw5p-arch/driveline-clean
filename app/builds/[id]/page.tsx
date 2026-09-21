@@ -1,11 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { BuildPhotoCarousel, type BuildPhoto } from "@/components/BuildPhotoCarousel";
-import { ViewFullBuild } from "@/components/ViewFullBuild";
 import { FitmentCreditsCheckoutButton } from "@/app/account/FitmentCreditsCheckoutButton";
-import { ExpandableText } from "@/components/ExpandableText";
-import { cleanJoin, formatBooleanLabel, formatBuildTitle, formatRubbingLabel, formatSuspension, formatWheelTireCombo } from "@/lib/buildDisplay";
-import { getPublicSocialHandle, sanitizePublicBuildNotes } from "@/lib/buildPrivacy";
+import { formatBuildTitle } from "@/lib/buildDisplay";
 import { getReviewedBuildSummary } from "@/lib/buildSummary";
 import { getFitmentEntitlementForCurrentUser } from "@/lib/fitmentEntitlements";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -81,8 +78,6 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
 
   const typedBuild = build as VerifiedBuild;
   const title = formatBuildTitle(typedBuild);
-  const socialHandle = getPublicSocialHandle(typedBuild);
-  const publicNotes = sanitizePublicBuildNotes(typedBuild.notes);
   const buildSummary = getReviewedBuildSummary(typedBuild);
 
   return (
@@ -95,28 +90,9 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
           <div className="build-story">
             <p>{buildSummary}</p>
           </div>
-          <ViewFullBuild>
-            <div className="build-facts" aria-label="Build facts">
-              {[
-                ["Wheel / tire", formatWheelTireCombo(typedBuild)],
-                ["Suspension", formatSuspension(typedBuild)],
-                ["Cab / Bed", cleanJoin([typedBuild.cab, typedBuild.bed], " / ")],
-                ["Rubbing", formatRubbingLabel(typedBuild.rubbing_severity)],
-                ["Trimming", formatBooleanLabel(typedBuild.trimming_required)],
-                ["Body mount chop", formatBooleanLabel(typedBuild.body_mount_chop)],
-                ...(!publicNotes
-                  ? [
-                      ["Lighting", typedBuild.lighting_upgrades],
-                      ["Favorite mods", typedBuild.favorite_modifications]
-                    ] as const
-                  : []),
-                ["Social", socialHandle]
-              ].map(([label, value]) => (
-                <div className="build-fact" key={label}><span>{label}</span><strong>{value || "Unknown"}</strong></div>
-              ))}
-            </div>
-            {publicNotes ? <ExpandableText text={publicNotes} className="lead build-notes" /> : null}
-          </ViewFullBuild>
+          <div className="view-full-build">
+            <Link className="button" href={`/builds/${id}/full`}>View full build</Link>
+          </div>
         </div>
       </div>
     </section>

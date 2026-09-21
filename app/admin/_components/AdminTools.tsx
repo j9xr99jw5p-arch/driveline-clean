@@ -898,6 +898,7 @@ async function approveBuild(formData: FormData) {
         revalidatePath("/admin/builds");
         revalidatePath("/builds");
         revalidatePath(`/builds/${buildId}`);
+        revalidatePath(`/builds/${buildId}/full`);
         return;
       }
     }
@@ -910,6 +911,7 @@ async function approveBuild(formData: FormData) {
   revalidatePath("/admin/builds");
   revalidatePath("/builds");
   revalidatePath(`/builds/${buildId}`);
+  revalidatePath(`/builds/${buildId}/full`);
 }
 
 async function generateAiSummary(formData: FormData) {

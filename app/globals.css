@@ -1144,14 +1144,41 @@ p {
 .view-full-build {
   display: grid;
   justify-items: start;
-  gap: 1.25rem;
   margin-top: 1.15rem;
 }
 
-.view-full-build-details {
+.build-full-layout {
   display: grid;
-  gap: 1.25rem;
-  width: 100%;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.build-full-head {
+  display: grid;
+  justify-items: start;
+  gap: 0.7rem;
+}
+
+.build-full-back {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.build-full-layout .build-carousel,
+.build-full-layout .build-photo-frame {
+  min-height: auto;
+  height: auto;
+  align-self: auto;
+}
+
+.build-full-layout .build-photo-frame {
+  aspect-ratio: 16 / 10;
+}
+
+.build-full-layout .build-story,
+.build-full-layout .build-facts {
+  margin-top: 0;
 }
 
 .build-facts {
