@@ -12,9 +12,10 @@ export type BuildPhoto = {
 type BuildPhotoCarouselProps = {
   photos: BuildPhoto[];
   title?: string;
+  variant?: "detail" | "full";
 };
 
-export function BuildPhotoCarousel({ photos, title = "Verified Tacoma build" }: BuildPhotoCarouselProps) {
+export function BuildPhotoCarousel({ photos, title = "Verified Tacoma build", variant = "detail" }: BuildPhotoCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const hasMultiplePhotos = photos.length > 1;
   const currentPhoto = photos[currentIndex];
@@ -28,7 +29,7 @@ export function BuildPhotoCarousel({ photos, title = "Verified Tacoma build" }: 
   }
 
   return (
-    <div className="build-carousel card">
+    <div className={`build-carousel card${variant === "full" ? " build-carousel-full" : ""}`}>
       <div className="build-photo-frame">
         {currentPhoto ? (
           // eslint-disable-next-line @next/next/no-img-element

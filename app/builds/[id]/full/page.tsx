@@ -46,7 +46,7 @@ export default async function FullBuildPage({ params }: { params: Promise<{ id: 
           <h1 className="build-detail-title">{title}</h1>
           <span className={`pill ${typedBuild.fitment_risk}`}>{typedBuild.fitment_risk} risk</span>
         </div>
-        <BuildPhotoCarousel photos={(photos ?? []) as BuildPhoto[]} title={title} />
+        <BuildPhotoCarousel photos={(photos ?? []) as BuildPhoto[]} title={title} variant="full" />
         <div className="build-story">
           <p>{buildSummary}</p>
         </div>

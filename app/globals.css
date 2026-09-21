@@ -1166,14 +1166,26 @@ p {
 }
 
 .build-full-layout .build-carousel,
-.build-full-layout .build-photo-frame {
-  min-height: auto;
+.build-full-layout .build-photo-frame,
+.build-carousel-full,
+.build-carousel-full .build-photo-frame {
+  min-height: 0;
   height: auto;
   align-self: auto;
 }
 
-.build-full-layout .build-photo-frame {
-  aspect-ratio: 16 / 10;
+.build-carousel-full .build-photo-frame {
+  aspect-ratio: auto;
+}
+
+.build-carousel-full .build-photo-frame img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: min(70vh, 760px);
+  margin-inline: auto;
+  object-fit: contain;
+  object-position: center;
 }
 
 .build-full-layout .build-story,
@@ -4176,6 +4188,10 @@ p {
 
   .build-photo-frame {
     aspect-ratio: 16 / 10;
+  }
+
+  .build-carousel-full .build-photo-frame {
+    aspect-ratio: auto;
   }
 
   .part-detail-image,
