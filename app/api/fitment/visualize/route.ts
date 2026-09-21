@@ -30,6 +30,7 @@ type InlineImage = {
   mimeType: string;
   data: string;
   name: string;
+  aspectRatio?: string;
 };
 
 export async function POST(request: Request) {
@@ -126,19 +127,25 @@ async function editTruckPhotos(photoUrls: string[], input: FitmentInput) {
   if (!customerImages.length) return [];
 
   const generated = await Promise.all(
-    customerImages.map((image) => editOneTruckPhoto(apiKey, image, input))
+    customerImages.map((image, index) => editOneTruckPhoto(apiKey, image, input, index, customerImages.length))
   );
 
   return generated.filter((url): url is string => Boolean(url));
 }
 
-async function editOneTruckPhoto(apiKey: string, customerImage: InlineImage, input: FitmentInput) {
+async function editOneTruckPhoto(
+  apiKey: string,
+  customerImage: InlineImage,
+  input: FitmentInput,
+  index: number,
+  count: number
+) {
   const body = {
     contents: [
       {
         role: "user",
         parts: [
-          { text: buildImageEditPrompt(input) },
+          { text: buildImageEditPrompt(input, { index: index + 1, count }) },
           { inline_data: { mime_type: customerImage.mimeType, data: customerImage.data } }
         ]
       }
@@ -146,7 +153,7 @@ async function editOneTruckPhoto(apiKey: string, customerImage: InlineImage, inp
     generationConfig: {
       responseModalities: ["TEXT", "IMAGE"],
       imageConfig: {
-        aspectRatio: "4:3",
+        ...(customerImage.aspectRatio ? { aspectRatio: customerImage.aspectRatio } : {}),
         imageSize
       }
     }
@@ -214,7 +221,8 @@ async function fetchInlineImages(urls: string[], prefix: string) {
       images.push({
         mimeType: type === "image/png" || type === "image/webp" ? type : "image/jpeg",
         data: buffer.toString("base64"),
-        name: `${prefix}-${index + 1}`
+        name: `${prefix}-${index + 1}`,
+        aspectRatio: geminiAspectRatio(readImageSize(buffer))
       });
     } catch (error) {
       console.error("Fetching visualize source image failed:", error);
@@ -222,6 +230,47 @@ async function fetchInlineImages(urls: string[], prefix: string) {
   }
 
   return images;
+}
+
+function readImageSize(buffer: Buffer) {
+  if (buffer.length >= 24 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+    return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+  }
+
+  if (buffer.length > 4 && buffer[0] === 0xff && buffer[1] === 0xd8) {
+    let offset = 2;
+    while (offset + 9 < buffer.length) {
+      if (buffer[offset] !== 0xff) break;
+      const marker = buffer[offset + 1];
+      const size = buffer.readUInt16BE(offset + 2);
+      if (marker === 0xc0 || marker === 0xc1 || marker === 0xc2) {
+        return {
+          height: buffer.readUInt16BE(offset + 5),
+          width: buffer.readUInt16BE(offset + 7)
+        };
+      }
+      offset += 2 + size;
+    }
+  }
+
+  return null;
+}
+
+function geminiAspectRatio(size: { width: number; height: number } | null) {
+  if (!size?.width || !size.height) return undefined;
+
+  const ratio = size.width / size.height;
+  const options = [
+    { label: "16:9", value: 16 / 9 },
+    { label: "4:3", value: 4 / 3 },
+    { label: "1:1", value: 1 },
+    { label: "3:4", value: 3 / 4 },
+    { label: "9:16", value: 9 / 16 }
+  ];
+
+  return options.reduce((best, option) => (
+    Math.abs(option.value - ratio) < Math.abs(best.value - ratio) ? option : best
+  )).label;
 }
 
 async function storeGeneratedImage(bytes: Buffer) {

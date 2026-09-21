@@ -40,46 +40,102 @@ export function buildVisionPrompt() {
   ].join(" ");
 }
 
-export function buildImageEditPrompt(input: FitmentInput, _referenceCount = 0) {
+export function buildImageEditPrompt(
+  input: FitmentInput,
+  photo: { index: number; count: number } = { index: 1, count: 1 }
+) {
   const modification = buildModificationDescription(input);
+  const photoLine = photo.count > 1
+    ? `This is photo ${photo.index} of ${photo.count} of the same vehicle. Apply every required change to this exact photo. Do not skip a requested change because another angle shows it more clearly.`
+    : "Apply every required change to this exact photo.";
 
   return [
-    "You are editing a single existing photograph of a truck. Your only task is to apply the modification described below to that exact photo. Treat this as a precise, surgical edit — not a new render, not a similar truck, not an artistic reinterpretation.",
+    "You are performing a surgical edit on one existing photograph. Start from this photo and change only the required items. Do not generate a new car, a similar car, a studio shot, or a restyle.",
     "",
-    "MODIFICATION TO APPLY:",
+    photoLine,
+    "",
+    "REQUIRED CHANGES (every item is mandatory on this photo):",
     modification,
     extraImagePrompt ? `\n${extraImagePrompt}` : "",
     "",
-    "RULES:",
-    "1. Change only what is explicitly requested above, plus any change that is a direct, unavoidable physical consequence of it (e.g. a taller lift raises the stance and increases the gap between tire and fender; larger tires fill more of the wheel well and may extend slightly past the fender lip; lowering the truck reduces ground clearance). Do not add any change beyond what the request requires or implies.",
-    "2. Do not alter: paint color and finish, wheel design and color (unless wheels/rims are the requested change), rim offset and width (unless requested), badges, decals, grille, headlights/taillights, mirrors, bumpers, bed style, cab configuration, window tint, or any existing wear or damage visible in the original photo.",
-    "3. Do not alter the camera: same angle, height, distance from the truck, field of view, framing, and crop as the original.",
-    "4. Do not alter the environment: same background, ground surface, weather, time of day, lighting direction, color temperature, and shadow placement as the original, except where the modification itself physically changes a shadow.",
-    "5. Match the original photo's style: same resolution, sharpness, grain, and level of realism. This must read as the same photograph, edited — not a new image generated to resemble it.",
-    "6. If the request is relative (bigger, smaller, taller, lower, more aggressive, etc.) with no exact measurement, apply a visually clear, realistic change sized appropriately for this vehicle, using the tires, wheels, and stance already visible in the photo as the baseline for comparison.",
-    "7. If the request gives a specific spec (e.g. \"35-inch tires,\" \"6-inch lift,\" \"2-inch leveling kit,\" \"20-inch wheels\"), match that spec as closely as a photorealistic edit allows.",
-    "8. Respect this specific vehicle's real proportions as shown in the photo (cab style, bed length, fender shape) — the result must still read as the same make and model, not a generic or different truck.",
-    "9. If more than one photo of the same truck is provided, apply the identical modification consistently across all of them.",
+    "LOCKED — COPY UNCHANGED FROM THE ORIGINAL PHOTO:",
+    "- Camera: same angle, zoom, crop, framing, distance, and lens look",
+    "- Scene: same background, ground, sky, weather, time of day, and lighting",
+    "- Identity: same year, make, model, body, badges, glass, interior glimpses, dirt, and damage",
+    "- Paint and finish, unless a wrap, paint, or color change was requested",
+    "- Wheels, tires, and stance, unless those were requested",
+    "- Bumpers, grille, lights, mirrors, body lines, and accessories, unless those were requested",
     "",
-    "The result must be immediately recognizable as the same truck, in the same photo, with only the described modification changed."
+    "RULES:",
+    "1. Apply ALL required changes together. If the owner asked for a wrap and a lower stance, this photo must show both. Applying only one requested change is a failed edit.",
+    "2. Change nothing else. No extra mods, no new parts, no restyling, no background cleanup, no crop, no zoom.",
+    "3. The only extra edits allowed are unavoidable physical consequences of a required change, such as a lower stance reducing fender gap and ground clearance, or a wrap covering the painted body panels.",
+    "4. If a request is relative (lower, taller, bigger) with no measurement, make a clear, realistic change using this photo as the baseline.",
+    "5. If a request gives a specific spec, match that spec as closely as a photorealistic edit allows.",
+    "",
+    "The result must look like the original photograph with only the required changes applied."
   ].join("\n");
+}
+
+export function splitRequestedChanges(text: string) {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  if (!cleaned) return [];
+
+  const parts = cleaned
+    .split(/\s*(?:\n+|;(?:\s|$)|(?:,\s+|\s+and\s+)(?=[A-Za-z]))/)
+    .map((part) => part.trim().replace(/^[-•*]\s*/, ""))
+    .filter((part) => part.length > 1);
+
+  return parts.length ? uniqueStrings(parts) : [cleaned];
 }
 
 function buildModificationDescription(input: FitmentInput) {
   const truck = [input.year, input.make, input.model, input.trim !== "Not specified" ? input.trim : ""]
     .filter(Boolean)
     .join(" ");
-  const wheel = `${input.wheelDiameter}x${input.wheelWidth} wheels at ${input.wheelOffset}mm offset`;
-  const lift = input.liftHeight > 0 ? `${input.liftHeight} inch lift` : "stock ride height";
   const customerRequest = input.plannedChanges?.trim() || input.buildGoals?.trim() || "";
+  const requestedChanges = splitRequestedChanges(customerRequest);
+  const checklist = requestedChanges.length
+    ? requestedChanges.map((change, index) => `${index + 1}. ${change}`).join("\n")
+    : "No written modification was provided. Keep the vehicle as photographed.";
 
   return [
-    customerRequest,
-    `Vehicle: ${truck}.`,
-    `Exact setup to match: ${input.tireSize} tires on ${wheel}, ${lift}.`
-  ]
-    .filter(Boolean)
-    .join("\n");
+    checklist,
+    `Vehicle: ${truck || "the vehicle in this photo"}. Keep this exact vehicle.`,
+    ...buildSupportingSpecs(customerRequest)
+  ].join("\n");
+}
+
+function buildSupportingSpecs(customerRequest: string) {
+  const specs: string[] = [];
+
+  if (!mentionsWheelsOrTires(customerRequest)) {
+    specs.push("Wheels and tires were not requested. Leave them exactly as photographed.");
+  }
+
+  if (!mentionsStance(customerRequest)) {
+    specs.push("Ride height was not requested. Leave stance exactly as photographed.");
+  }
+
+  return specs;
+}
+
+function mentionsStance(text: string) {
+  return /\b(lower(?:ed|ing)?|drop(?:ped|ping)?|slam(?:med)?|lift(?:ed|ing)?|level(?:ing|led)?|bags?|air ride|stance|ride height)\b/i.test(text);
+}
+
+function mentionsWheelsOrTires(text: string) {
+  return /\b(wheel|wheels|rim|rims|tire|tires|tyre|tyres)\b/i.test(text);
+}
+
+function uniqueStrings(values: string[]) {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const key = value.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export function parseVisionResult(value: unknown): FitmentVisionResult | null {
