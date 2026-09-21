@@ -91,7 +91,7 @@ export default async function AccountPage() {
           <div className="spec-row"><span className="muted">Role</span><strong>{profile?.role ?? "user"}</strong></div>
           <div className="spec-row"><span className="muted">Email</span><strong>{user.email}</strong></div>
           <div className="spec-row"><span className="muted">Plan</span><strong>{planName}</strong></div>
-          <div className="spec-row"><span className="muted">Free checks used</span><strong>{Math.min(Number(plan?.fitment_checks_used ?? 0), 3)} / {checkLimit}</strong></div>
+          <div className="spec-row"><span className="muted">Free checks used</span><strong>{canAccessAdmin ? "Unlimited" : `${Math.min(Number(plan?.fitment_checks_used ?? 0), 3)} / ${checkLimit}`}</strong></div>
           <div className="spec-row"><span className="muted">Subscription</span><strong>{hasPaidAccess ? plan?.status : subscription?.status ?? "none"}</strong></div>
           <hr style={{ borderColor: "var(--border-color)", margin: "20px 0" }} />
           <h2>One-time fitment credits</h2>

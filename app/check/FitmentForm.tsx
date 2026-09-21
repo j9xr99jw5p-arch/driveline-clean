@@ -17,9 +17,18 @@ import {
 } from "@/lib/fitmentExtraction";
 import { emptyFitmentVisualizeResult, type FitmentVisualizeResult } from "@/lib/fitmentVisualize";
 import { saveFitmentResult, saveTruckProfile } from "@/lib/reportRenderer";
+import { CreditEstimate } from "@/components/CreditEstimate";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { FitmentInput, FitmentReport } from "@/lib/types";
 import type { VehicleOptions } from "@/lib/vehicleOptions";
+
+const MOD_CATEGORIES = [
+  { tag: "wrap", label: "Wrap or paint" },
+  { tag: "stance", label: "Stance" },
+  { tag: "wheels", label: "Wheels & tires" },
+  { tag: "bumper", label: "Bumper" },
+  { tag: "lighting", label: "Lighting" }
+] as const;
 
 type FitmentFormEntitlement = {
   isAuthenticated: boolean;
@@ -31,6 +40,7 @@ type FitmentFormFreeChecks = {
   limit: number;
   remaining: number;
   canRunFreeCheck: boolean;
+  unlimited?: boolean;
 };
 
 type SpecDraft = {
@@ -86,6 +96,8 @@ export function FitmentForm({
   const [draft, setDraft] = useState<SpecDraft>(emptyDraft);
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [selectedModTags, setSelectedModTags] = useState<string[]>([]);
+  const [canAffordCredits, setCanAffordCredits] = useState(true);
   const [missingFields, setMissingFields] = useState<SpecField[]>([]);
   const [interpretation, setInterpretation] = useState<string | null>(null);
   const [extractedKey, setExtractedKey] = useState<string | null>(null);
@@ -126,6 +138,11 @@ export function FitmentForm({
 
     if (!canDescribe) {
       setStatus("Add 1 to 3 photos, pick your year, make, and model, then tell us what you want to do and how you use the truck.");
+      return;
+    }
+
+    if (!canAffordCredits) {
+      setStatus("Not enough credits for this check. Add credits or choose fewer photos and mods.");
       return;
     }
 
@@ -366,6 +383,33 @@ export function FitmentForm({
           />
         </label>
 
+        <fieldset className="field check-mod-fieldset">
+          <legend>Mod categories</legend>
+          <p className="check-mod-help">Select what you want changed. This sets the credit cost.</p>
+          <div className="check-mod-categories">
+            {MOD_CATEGORIES.map((category) => {
+              const selected = selectedModTags.includes(category.tag);
+              return (
+                <button
+                  key={category.tag}
+                  type="button"
+                  className={selected ? "active" : undefined}
+                  aria-pressed={selected}
+                  onClick={() => {
+                    setSelectedModTags((current) => (
+                      current.includes(category.tag)
+                        ? current.filter((tag) => tag !== category.tag)
+                        : [...current, category.tag]
+                    ));
+                  }}
+                >
+                  {category.label}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+
         <label className="field">
           <span>What’s on it now?</span>
           <textarea
@@ -421,9 +465,21 @@ export function FitmentForm({
         ) : null}
 
         <div className="check-actions">
-          <button className="button primary full" type="submit" disabled={isWorking || !canDescribe || !canRunCheck}>
-            {isWorking ? "Working..." : "Run Fitment Check"}
-          </button>
+          <div className="check-submit-block">
+            <CreditEstimate
+              photoCount={photos.length}
+              modTags={selectedModTags}
+              unlimited={freeChecks.unlimited}
+              onCanAffordChange={setCanAffordCredits}
+            />
+            <button
+              className="button primary full"
+              type="submit"
+              disabled={isWorking || !canDescribe || !canRunCheck || !canAffordCredits}
+            >
+              {isWorking ? "Working..." : "Run Fitment Check"}
+            </button>
+          </div>
         </div>
 
         <p className="verify-hint">
@@ -443,6 +499,10 @@ function checkHint(
   freeChecks: FitmentFormFreeChecks,
   entitlement: FitmentFormEntitlement
 ) {
+  if (freeChecks.unlimited) {
+    return "Admin checks are unlimited.";
+  }
+
   if (freeChecks.canRunFreeCheck) {
     return `${freeChecks.remaining} of ${freeChecks.limit} free checks left.`;
   }

@@ -1,6 +1,7 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
+import { isAdminEmail } from "@/lib/adminAccess";
 import { ensureFreeUserPlan } from "@/lib/billing";
 import { planLimits } from "@/lib/plans";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -16,6 +17,7 @@ export type FreeFitmentCheckQuota = {
   used: number;
   remaining: number;
   canRunFreeCheck: boolean;
+  unlimited: boolean;
 };
 
 export function emptyFreeFitmentCheckQuota(): FreeFitmentCheckQuota {
@@ -23,11 +25,22 @@ export function emptyFreeFitmentCheckQuota(): FreeFitmentCheckQuota {
     limit: freeFitmentCheckLimit,
     used: 0,
     remaining: freeFitmentCheckLimit,
-    canRunFreeCheck: true
+    canRunFreeCheck: true,
+    unlimited: false
   };
 }
 
 export async function getFreeFitmentCheckQuota(): Promise<FreeFitmentCheckQuota> {
+  if (await currentUserIsAdmin()) {
+    return {
+      limit: freeFitmentCheckLimit,
+      used: 0,
+      remaining: freeFitmentCheckLimit,
+      canRunFreeCheck: true,
+      unlimited: true
+    };
+  }
+
   const signedInUsed = await readSignedInFreeChecksUsed();
   const cookieUsed = await readFreeCheckCookie();
   const used = Math.max(signedInUsed ?? 0, cookieUsed);
@@ -37,12 +50,17 @@ export async function getFreeFitmentCheckQuota(): Promise<FreeFitmentCheckQuota>
     limit: freeFitmentCheckLimit,
     used: Math.min(used, freeFitmentCheckLimit),
     remaining,
-    canRunFreeCheck: remaining > 0
+    canRunFreeCheck: remaining > 0,
+    unlimited: false
   };
 }
 
 export async function consumeFreeFitmentCheck(): Promise<FreeFitmentCheckQuota & { ok: boolean }> {
   const current = await getFreeFitmentCheckQuota();
+  if (current.unlimited) {
+    return { ok: true, ...current };
+  }
+
   if (!current.canRunFreeCheck) {
     return { ok: false, ...current };
   }
@@ -57,8 +75,17 @@ export async function consumeFreeFitmentCheck(): Promise<FreeFitmentCheckQuota &
     limit: freeFitmentCheckLimit,
     used: nextUsed,
     remaining,
-    canRunFreeCheck: remaining > 0
+    canRunFreeCheck: remaining > 0,
+    unlimited: false
   };
+}
+
+async function currentUserIsAdmin() {
+  if (!hasSupabaseServerEnv()) return false;
+
+  const supabase = await createSupabaseServerClient();
+  const currentUser = await getCurrentSupabaseUser(supabase);
+  return isAdminEmail(currentUser?.user.email);
 }
 
 async function readSignedInFreeChecksUsed() {

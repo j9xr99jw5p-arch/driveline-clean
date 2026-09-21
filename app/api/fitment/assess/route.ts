@@ -68,7 +68,7 @@ export async function POST(request: Request) {
   const deterministicReport = assessFitment(input);
   const entitlement = await getFitmentEntitlementForCurrentUser();
   const freeQuota = await getFreeFitmentCheckQuota();
-  const billing = freeQuota.canRunFreeCheck ? "free" : entitlement.canRunPremiumCheck ? "paid" : null;
+  const billing = freeQuota.unlimited || freeQuota.canRunFreeCheck ? "free" : entitlement.canRunPremiumCheck ? "paid" : null;
 
   if (!billing) {
     return NextResponse.json({ error: outOfChecksMessage, freeChecks: freeQuota }, { status: 429 });
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sign in before using a paid fitment check." }, { status: 401 });
   }
 
-  if (billing === "free" && isFreeCheckLimited(await getRequestIp())) {
+  if (billing === "free" && !freeQuota.unlimited && isFreeCheckLimited(await getRequestIp())) {
     return NextResponse.json({ error: "Free fitment check limit reached. Please try again later." }, { status: 429 });
   }
 
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
   };
 
   if (billing === "free") {
-    const consumed = await consumeFreeFitmentCheck();
+    const consumed = freeQuota.unlimited ? { ok: true as const, ...freeQuota } : await consumeFreeFitmentCheck();
     if (!consumed.ok) {
       return NextResponse.json({ error: outOfChecksMessage, freeChecks: consumed }, { status: 429 });
     }
