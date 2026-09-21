@@ -1,4 +1,5 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { rewriteWrongTruckName } from "@/lib/fitmentVehicleCopy";
 import type { FitmentAiReport, FitmentInput, FitmentReport } from "@/lib/types";
 
 type CallFitmentAiArgs = {
@@ -31,12 +32,13 @@ type PartialFitmentAdvice = Partial<FitmentAiReport> & Partial<LegacyFitmentAiRe
 
 export function normalizeAiExplanation(
   ai: PartialFitmentAdvice | null | undefined,
-  fallbackReport: FitmentReport
+  fallbackReport: FitmentReport,
+  input?: FitmentInput
 ): FitmentAiReport {
   const trimmingText = fallbackReport.trimmingLikely ? "likely need trimming" : "does not look likely to need major trimming";
   const bodyMountText = fallbackReport.bodyMountChopLikely ? "body mount clearance should be checked closely" : "a body mount chop does not look likely from the provided setup";
 
-  return {
+  const report: FitmentAiReport = {
     headline:
       ai?.headline ??
       ai?.fitmentVerdict ??
@@ -58,6 +60,17 @@ export function normalizeAiExplanation(
     disclaimer:
       ai?.disclaimer ??
       "Estimate only. Final clearance should be verified on the actual vehicle."
+  };
+
+  if (!input) return report;
+
+  return {
+    headline: rewriteWrongTruckName(report.headline, input),
+    overviewAdvice: rewriteWrongTruckName(report.overviewAdvice, input),
+    dailyDrivingAdvice: rewriteWrongTruckName(report.dailyDrivingAdvice, input),
+    offRoadAdvice: rewriteWrongTruckName(report.offRoadAdvice, input),
+    beforeYouCommit: rewriteWrongTruckName(report.beforeYouCommit, input),
+    disclaimer: rewriteWrongTruckName(report.disclaimer, input)
   };
 }
 

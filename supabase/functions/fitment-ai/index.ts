@@ -129,7 +129,7 @@ Deno.serve(async (request) => {
       return jsonResponse({ success: false, error: "report_unavailable", userMessage: friendlyUserMessage }, 502);
     }
 
-    return jsonResponse({ success: true, aiReport });
+    return jsonResponse({ success: true, aiReport: rewriteAiReport(aiReport, normalizedInput) });
   } catch (error) {
     console.error("Unexpected server error", error);
     return jsonResponse({ success: false, error: "report_unavailable", userMessage: friendlyUserMessage }, 500);
@@ -155,12 +155,12 @@ function callResponsesApi(
         {
           role: "system",
           content:
-            "You are a Driveline wheel, tire, and lift fitment advisor. Write short, practical advice a truck owner can scan in under a minute. Name the truck using the year, make, and model from the input. Never call it a Tacoma unless the input is a Toyota Tacoma. The deterministic report is the source of truth — do not contradict it. Each JSON string must be 1-2 sentences and under 220 characters. headline must be 8 words or fewer. Do not write long paragraphs or repeat the same warning. Return only valid JSON."
+            "You are a Driveline wheel, tire, and lift fitment advisor. Write short, practical advice a truck owner can scan in under a minute. The truck is identified in the input year, make, and model. Always call it by that name. If it is not a Toyota Tacoma, do not say Tacoma or Toyota Tacoma anywhere. The deterministic report is the source of truth — do not contradict it. Each JSON string must be 1-2 sentences and under 220 characters. headline must be 8 words or fewer. Do not write long paragraphs or repeat the same warning. Return only valid JSON."
         },
         {
           role: "user",
           content: JSON.stringify({
-            task: "Write a short premium fitment brief. Keep every field to 1-2 tight sentences. Do not repeat the deterministic summary.",
+            task: "Write a short premium fitment brief. Keep every field to 1-2 tight sentences. Do not repeat the deterministic summary. Refer to the truck only as the year, make, and model in input.",
             input,
             deterministicSourceOfTruth,
             deterministicReport
@@ -229,6 +229,44 @@ function normalizeFitmentInput(input: Record<string, unknown>) {
     wheelOffset: normalizeNumberLike(input.wheelOffset),
     liftHeight: normalizeNumberLike(input.liftHeight)
   };
+}
+
+function rewriteAiReport(report: FitmentAiReport, input: Record<string, unknown>): FitmentAiReport {
+  const vehicle = {
+    year: input.year as number | string | undefined,
+    make: typeof input.make === "string" ? input.make : undefined,
+    model: typeof input.model === "string" ? input.model : undefined
+  };
+
+  return {
+    headline: rewriteWrongTruckName(report.headline, vehicle),
+    overviewAdvice: rewriteWrongTruckName(report.overviewAdvice, vehicle),
+    dailyDrivingAdvice: rewriteWrongTruckName(report.dailyDrivingAdvice, vehicle),
+    offRoadAdvice: rewriteWrongTruckName(report.offRoadAdvice, vehicle),
+    beforeYouCommit: rewriteWrongTruckName(report.beforeYouCommit, vehicle),
+    disclaimer: rewriteWrongTruckName(report.disclaimer, vehicle)
+  };
+}
+
+function rewriteWrongTruckName(
+  text: string,
+  input: { year?: number | string; make?: string; model?: string }
+) {
+  if (!text) return text;
+  const make = input.make?.trim().toLowerCase();
+  const model = input.model?.trim().toLowerCase();
+  if (make === "toyota" && model === "tacoma") return text;
+
+  const name = [input.year, input.make, input.model]
+    .map((part) => String(part ?? "").trim())
+    .filter(Boolean)
+    .join(" ") || "this truck";
+
+  return text
+    .replace(/\bToyota Tacomas\b/gi, `${name}s`)
+    .replace(/\bToyota Tacoma\b/gi, name)
+    .replace(/\bTacomas\b/gi, `${name}s`)
+    .replace(/\bTacoma\b/gi, name);
 }
 
 function normalizeNumberLike(value: unknown) {

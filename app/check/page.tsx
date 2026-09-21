@@ -15,9 +15,9 @@ export default async function CheckPage() {
   return (
     <div className="section verify-page">
       <section className="verify-intro">
-        <h1>Check Your Fitment Before You Build</h1>
+        <h1>Check Your Fitment</h1>
         <p className="verify-tagline">
-          Upload 1 to 3 photos of your truck, tell us what you want done, and we’ll show an estimated look plus a full fitment report matched against verified builds.
+          Upload a few photos, describe the build, and get a clear report.
         </p>
       </section>
 

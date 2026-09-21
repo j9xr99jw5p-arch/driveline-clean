@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { normalizeAiExplanation } from "@/lib/fitmentAi";
+import { rewriteWrongTruckName } from "@/lib/fitmentVehicleCopy";
 import {
   firstSentence,
   formatFitmentLabel,
@@ -59,7 +60,7 @@ export default function ResultsPage() {
   }
 
   const { input, report } = result;
-  const advice = normalizeAiExplanation(report.aiExplanation, report);
+  const advice = normalizeAiExplanation(report.aiExplanation, report, input);
   const insights = report.premiumInsights;
   const matchedBuilds = report.matchedBuilds ?? [];
   const displayedWarnings = (report.premiumWarnings?.length ? report.premiumWarnings : report.warnings)
@@ -114,7 +115,7 @@ export default function ResultsPage() {
           <p className="eyebrow">Fitment Results</p>
           <span className={`pill ${report.rubbingRisk}`}>{report.rubbingRisk} risk</span>
           <h1>{report.verdict}</h1>
-          <p className="fitment-report-lead">{firstSentence(report.explanation)}</p>
+          <p className="fitment-report-lead">{firstSentence(rewriteWrongTruckName(report.explanation, input))}</p>
           {notice ? <p className="muted">{notice}</p> : null}
         </header>
 

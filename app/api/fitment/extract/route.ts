@@ -9,6 +9,7 @@ import {
   type ExtractionResult,
   type FitmentDescription
 } from "@/lib/fitmentExtraction";
+import { rewriteWrongTruckName } from "@/lib/fitmentVehicleCopy";
 
 const descriptionSchema = z.object({
   year: z.string().trim().max(8).default(""),
@@ -119,7 +120,11 @@ async function extractWithAi(description: FitmentDescription, localSpecs: Extrac
       Object.assign(specs, { [key]: value });
     }
 
-    return { specs, interpretation: interpretation ?? null, usedAi: true };
+    return {
+      specs,
+      interpretation: interpretation ? rewriteWrongTruckName(interpretation, description) : null,
+      usedAi: true
+    };
   } catch (error) {
     console.error("Fitment extraction crashed:", error);
     return empty;
@@ -135,7 +140,7 @@ const systemPrompt = [
   "liftHeight is inches of suspension lift as a number; a leveling kit alone is about 2.",
   "useCase must be daily, mixed, or off-road. rearLoad must be normal, sometimes-heavy, or constant-heavy.",
   "cab should be 'Access Cab' or 'Double Cab' only if stated. bed should be '5 ft' or '6 ft' only if stated.",
-  "interpretation is one or two sentences telling the owner what you understood, in second person. Mention anything important they left out.",
+  "interpretation is one or two sentences telling the owner what you understood, in second person. Use the Vehicle line as the truck name. Never say Tacoma unless that vehicle is a Toyota Tacoma. Mention anything important they left out.",
   "",
   "Respond with exactly these keys:",
   '{"currentTireSize":null,"tireSize":null,"wheelDiameter":null,"wheelWidth":null,"wheelOffset":null,"liftHeight":null,"useCase":null,"rearLoad":null,"cab":null,"bed":null,"interpretation":""}'
@@ -148,7 +153,7 @@ function buildExtractionPrompt(description: FitmentDescription, localSpecs: Extr
     .join(" ");
 
   return [
-    `Vehicle: ${vehicle || "not specified"}`,
+    `Vehicle: ${vehicle || "not specified"}. Refer to this truck only by that name.`,
     "",
     "What they want to do to the truck:",
     description.plannedChanges || "(not provided)",

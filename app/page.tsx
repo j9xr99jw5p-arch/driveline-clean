@@ -44,6 +44,9 @@ export default async function HomePage() {
               <div className="homepage-build-photo">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={featuredPhoto.url} alt={featuredAlt} />
+                <p className="homepage-build-meta">
+                  {featuredBuild.year} {featuredBuild.make} {featuredBuild.model}
+                </p>
               </div>
             </Link>
           ) : (

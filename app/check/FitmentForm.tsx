@@ -240,8 +240,8 @@ export function FitmentForm({
       visualizeTruck(photoUrls, input)
     ]);
     const normalizedAiExplanation = aiResult.report
-      ? normalizeAiExplanation(aiResult.report, deterministicReport)
-      : normalizeAiExplanation(null, deterministicReport);
+      ? normalizeAiExplanation(aiResult.report, deterministicReport, input)
+      : normalizeAiExplanation(null, deterministicReport, input);
 
     if (aiResult.notice) {
       sessionStorage.setItem("drivelineReportNotice", aiResult.notice);
@@ -305,7 +305,7 @@ export function FitmentForm({
     <>
       <form className="verify-form" onSubmit={onSubmit}>
         <label className="field">
-          <span>Photos of your truck</span>
+          <span>Photos</span>
           <input
             name="check-photos"
             type="file"
@@ -337,14 +337,13 @@ export function FitmentForm({
             ))}
           </div>
         ) : null}
-        <p className="verify-hint">Add 1 to 3 clear photos. Front-quarter or side shots work best.</p>
 
         <VehicleSelect vehicleOptions={vehicleOptions} onChange={setVehicle} />
 
         <label className="field">
           <span>Trim</span>
           <input
-            placeholder="TRD Off-Road, SR5, Lariat, Rubicon..."
+            placeholder="TRD Off-Road, Lariat, Rubicon..."
             value={description.trim}
             onChange={(event) => updateDescription("trim", event.target.value)}
           />
@@ -352,16 +351,15 @@ export function FitmentForm({
 
         {vehicle.make && vehicle.model && !tacomaCalibrated ? (
           <p className="check-calibration-note">
-            Heads up: Driveline’s clearance thresholds are calibrated on Toyota Tacoma data. We’ll still run your{" "}
-            {vehicle.make} {vehicle.model}, but treat the result as a rough estimate until we have verified builds for it.
+            Estimate only — clearance data is calibrated on Tacoma builds.
           </p>
         ) : null}
 
         <label className="field">
-          <span>What do you want to do to the truck?</span>
+          <span>What do you want to do?</span>
           <textarea
             className="verify-spec"
-            placeholder="Example: I want to run 285/70R17 KO2s on 17x8.5 wheels with -12 offset and a 3 inch lift."
+            placeholder="285/70R17 KO2s, 17x8.5, -12 offset, 3 inch lift."
             value={description.plannedChanges}
             onChange={(event) => updateDescription("plannedChanges", event.target.value)}
             required
@@ -369,20 +367,20 @@ export function FitmentForm({
         </label>
 
         <label className="field">
-          <span>What have you already done?</span>
+          <span>What’s on it now?</span>
           <textarea
             className="verify-spec"
-            placeholder="Example: Still on stock 265/70R16 tires and stock suspension. Added a front bumper last year."
+            placeholder="Stock tires and suspension."
             value={description.currentSetup}
             onChange={(event) => updateDescription("currentSetup", event.target.value)}
           />
         </label>
 
         <label className="field">
-          <span>How do you use the truck?</span>
+          <span>How do you use it?</span>
           <textarea
             className="verify-spec"
-            placeholder="Example: Daily commute during the week, forest roads and camping most weekends."
+            placeholder="Daily driver, forest roads on weekends."
             value={description.usage}
             onChange={(event) => updateDescription("usage", event.target.value)}
             required
@@ -390,20 +388,10 @@ export function FitmentForm({
         </label>
 
         <label className="field">
-          <span>Build goals</span>
+          <span>Anything else?</span>
           <textarea
             className="verify-note"
-            placeholder="Example: Biggest tire I can run without cutting anything, and I want it to stay quiet on the highway."
-            value={description.buildGoals}
-            onChange={(event) => updateDescription("buildGoals", event.target.value)}
-          />
-        </label>
-
-        <label className="field">
-          <span>Anything else we should know?</span>
-          <textarea
-            className="verify-note"
-            placeholder="Example: I keep a rooftop tent and drawers in the bed year round."
+            placeholder="Rooftop tent, no cutting, quiet on the highway..."
             value={description.extraNotes}
             onChange={(event) => updateDescription("extraNotes", event.target.value)}
           />
@@ -414,7 +402,7 @@ export function FitmentForm({
         {missingFields.length ? (
           <div className="check-follow-up">
             <p className="check-missing-note">
-              We need {formatFieldList(missingFields)} to finish the check. Add {missingFields.length === 1 ? "it" : "them"} below — everything else can stay in the boxes above.
+              Add {formatFieldList(missingFields)} to finish.
             </p>
             <div className={missingFields.length > 2 ? "check-spec-grid" : "verify-vehicle-grid"}>
               {missingFields.map((field) => (
@@ -439,9 +427,6 @@ export function FitmentForm({
         </div>
 
         <p className="verify-hint">
-          {!canDescribe
-            ? "Add 1 to 3 photos, pick your year, make, and model, then tell us your plan and how you use the truck. "
-            : ""}
           {checkHint(freeChecks, entitlement)}
         </p>
       </form>
@@ -459,7 +444,7 @@ function checkHint(
   entitlement: FitmentFormEntitlement
 ) {
   if (freeChecks.canRunFreeCheck) {
-    return `${freeChecks.remaining} of ${freeChecks.limit} free checks remaining. Same full report every time.`;
+    return `${freeChecks.remaining} of ${freeChecks.limit} free checks left.`;
   }
 
   if (entitlement.canRunPremiumCheck) {
@@ -482,7 +467,7 @@ function MoreChecksCard({
     <div className="check-premium-card">
       <p className="eyebrow">Need another check?</p>
       <h3>Two more fitment checks</h3>
-      <p className="muted">$14 one-time. Same full report, including verified-build matches. Also unlocks the verified builds library.</p>
+      <p className="muted">$14 one-time. Same full report, plus the verified builds library.</p>
       <div className="spec-row">
         <span className="muted">Paid checks remaining</span>
         <strong>{entitlement.premiumChecksRemaining}</strong>
