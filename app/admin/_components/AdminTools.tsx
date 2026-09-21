@@ -21,6 +21,7 @@ import {
   formatWheelTireCombo
 } from "@/lib/buildDisplay";
 import { buildSummaryPrompt, createLocalBuildSummary } from "@/lib/buildSummary";
+import { buildNotesFormatPrompt, mergePrivateNoteLines, notesLookStructured } from "@/lib/buildNotes";
 import {
   formatCents,
   getReviewSentimentLabel,
@@ -830,7 +831,7 @@ export function BuildReviewCard({ build }: { build: VerifiedBuild }) {
         <div>
           <p className="eyebrow">Review Summary</p>
           <h3>Approved build explanation</h3>
-          <p className="muted">Generate a draft with AI, edit it here, then approve. Public build pages use this reviewed text.</p>
+          <p className="muted">Generate a draft with AI, edit it here, then approve. Public build pages use this reviewed text. This also turns a dumped parts list into a scannable bullet list.</p>
         </div>
         <form action={generateAiSummary}>
           <input type="hidden" name="buildId" value={build.id} />
@@ -944,10 +945,17 @@ async function generateAiSummary(formData: FormData) {
     throw new Error("Could not load build for summary generation.");
   }
 
-  const summary = await generateOpenAiBuildSummary(build as VerifiedBuild);
+  const typedBuild = build as VerifiedBuild;
+  const [summary, formattedNotes] = await Promise.all([
+    generateOpenAiBuildSummary(typedBuild),
+    generateOpenAiBuildNotes(typedBuild)
+  ]);
   const { error: updateError } = await admin
     .from("verified_builds")
-    .update({ build_summary: summary })
+    .update({
+      build_summary: summary,
+      ...(formattedNotes ? { notes: formattedNotes } : {})
+    })
     .eq("id", buildId);
 
   if (updateError) {
@@ -956,6 +964,8 @@ async function generateAiSummary(formData: FormData) {
   }
 
   revalidatePath("/admin/builds");
+  revalidatePath(`/builds/${buildId}`);
+  revalidatePath(`/builds/${buildId}/full`);
 }
 
 async function generateOpenAiBuildSummary(build: VerifiedBuild) {
@@ -989,12 +999,58 @@ async function generateOpenAiBuildSummary(build: VerifiedBuild) {
     }
 
     const data = await response.json();
-    const text = data.output_text || data.output?.flatMap((item: { content?: Array<{ text?: string }> }) => item.content ?? []).map((item: { text?: string }) => item.text).filter(Boolean).join("\n");
-    return typeof text === "string" && text.trim() ? text.trim() : createLocalBuildSummary(build);
+    const text = readOpenAiOutputText(data);
+    return text || createLocalBuildSummary(build);
   } catch (error) {
     console.error("OpenAI build summary generation crashed:", error);
     return createLocalBuildSummary(build);
   }
+}
+
+async function generateOpenAiBuildNotes(build: VerifiedBuild) {
+  const notes = build.notes?.trim();
+  if (!notes || notesLookStructured(notes) || !process.env.OPENAI_API_KEY) return null;
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        model: process.env.OPENAI_BUILD_SUMMARY_MODEL || process.env.OPENAI_MODEL || "gpt-4.1-mini",
+        input: [
+          {
+            role: "system",
+            content: "You clean up truck build lists into scannable headings and bullets. Keep every real part. Do not invent details. Return only the formatted list."
+          },
+          {
+            role: "user",
+            content: buildNotesFormatPrompt(notes)
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      console.error("OpenAI build notes request failed:", await response.text());
+      return null;
+    }
+
+    const data = await response.json();
+    const text = readOpenAiOutputText(data);
+    if (typeof text !== "string" || !text.trim() || !notesLookStructured(text)) return null;
+    return mergePrivateNoteLines(notes, text.trim());
+  } catch (error) {
+    console.error("OpenAI build notes formatting crashed:", error);
+    return null;
+  }
+}
+
+function readOpenAiOutputText(data: { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> }) {
+  if (typeof data.output_text === "string" && data.output_text.trim()) return data.output_text.trim();
+  return data.output?.flatMap((item) => item.content ?? []).map((item) => item.text).filter(Boolean).join("\n") ?? "";
 }
 
 async function updateProductStock(formData: FormData) {

@@ -1177,8 +1177,36 @@ p {
 }
 
 .build-full-layout .build-story,
-.build-full-layout .build-facts {
+.build-full-layout .build-facts,
+.build-full-layout .build-notes-list {
   margin-top: 0;
+}
+
+.build-notes-list {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.build-notes-list h2 {
+  margin: 0 0 0.45rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.build-notes-list ul {
+  display: grid;
+  gap: 0.38rem;
+  margin: 0;
+  padding-left: 1.15rem;
+}
+
+.build-notes-list li {
+  color: var(--text-primary);
+  font-weight: 650;
+  line-height: 1.5;
 }
 
 .build-facts {

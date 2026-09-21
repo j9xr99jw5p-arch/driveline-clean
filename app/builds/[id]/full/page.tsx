@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { BuildPhotoCarousel, type BuildPhoto } from "@/components/BuildPhotoCarousel";
+import { BuildNotesList } from "@/components/BuildNotesList";
 import { cleanJoin, formatBooleanLabel, formatRubbingLabel, formatSuspension, formatWheelTireCombo } from "@/lib/buildDisplay";
 import { getPublicSocialHandle, sanitizePublicBuildNotes } from "@/lib/buildPrivacy";
 import { getReviewedBuildSummary } from "@/lib/buildSummary";
@@ -57,14 +58,18 @@ export default async function FullBuildPage({ params }: { params: Promise<{ id: 
             ["Rubbing", formatRubbingLabel(typedBuild.rubbing_severity)],
             ["Trimming", formatBooleanLabel(typedBuild.trimming_required)],
             ["Body mount chop", formatBooleanLabel(typedBuild.body_mount_chop)],
-            ["Lighting", typedBuild.lighting_upgrades],
-            ["Favorite mods", typedBuild.favorite_modifications],
+            ...(!publicNotes
+              ? [
+                  ["Lighting", typedBuild.lighting_upgrades],
+                  ["Favorite mods", typedBuild.favorite_modifications]
+                ] as const
+              : []),
             ["Social", socialHandle]
           ].map(([label, value]) => (
             <div className="build-fact" key={label}><span>{label}</span><strong>{value || "Unknown"}</strong></div>
           ))}
         </div>
-        {publicNotes ? <p className="lead build-notes">{publicNotes}</p> : null}
+        <BuildNotesList notes={typedBuild.notes} />
       </div>
     </section>
   );
