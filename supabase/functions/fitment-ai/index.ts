@@ -155,7 +155,7 @@ function callResponsesApi(
         {
           role: "system",
           content:
-            "You are a Driveline wheel, tire, and lift fitment advisor. Write short, practical advice a truck owner can scan in under a minute. The deterministic report is the source of truth — do not contradict it. Each JSON string must be 1-2 sentences and under 220 characters. headline must be 8 words or fewer. Do not write long paragraphs or repeat the same warning. Return only valid JSON."
+            "You are a Driveline wheel, tire, and lift fitment advisor. Write short, practical advice a truck owner can scan in under a minute. Name the truck using the year, make, and model from the input. Never call it a Tacoma unless the input is a Toyota Tacoma. The deterministic report is the source of truth — do not contradict it. Each JSON string must be 1-2 sentences and under 220 characters. headline must be 8 words or fewer. Do not write long paragraphs or repeat the same warning. Return only valid JSON."
         },
         {
           role: "user",

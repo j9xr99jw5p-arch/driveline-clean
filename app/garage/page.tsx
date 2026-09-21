@@ -47,7 +47,7 @@ export default function GaragePage() {
       <div className="section">
         <div className="page-head">
           <p className="eyebrow">Garage</p>
-          <h1>Your Tacoma garage.</h1>
+          <h1>Your garage.</h1>
           <p className="lead">Sign in to save garage vehicles across devices. This device can still show your latest fitment profile.</p>
         </div>
 
@@ -92,7 +92,7 @@ export default function GaragePage() {
             <div className="card">
               <h2>Local Truck Profile</h2>
               <div className="detail-grid">
-                <ProfileField label="Vehicle" value={`${profile.year} Toyota Tacoma ${profile.trim}`} />
+                <ProfileField label="Vehicle" value={[profile.year, profile.make, profile.model, profile.trim].filter(Boolean).join(" ")} />
                 <ProfileField label="Cab / Bed" value={`${profile.cab} / ${profile.bed}`} />
                 <ProfileField label="Current Tires" value={profile.currentTireSize ?? "Not entered"} />
                 <ProfileField label="Intended Tires" value={profile.tireSize} />

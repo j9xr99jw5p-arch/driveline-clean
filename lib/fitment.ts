@@ -107,7 +107,7 @@ function buildCoreFitmentReport(input: FitmentInput): FitmentReport {
     suspensionStress,
     dailyDrivability,
     offRoadPracticality,
-    explanation: `${input.tireSize} on a ${input.wheelDiameter}x${input.wheelWidth} wheel with ${input.wheelOffset}mm offset is a ${rubbingRisk}-risk Tacoma setup. ${trimmingLikely ? "Expect liner movement or trimming." : "Trimming is unlikely for normal street driving."} ${bodyMountChopLikely ? "A body mount chop may be needed at full lock or off-road." : "A body mount chop is not likely."}`,
+    explanation: `${input.tireSize} on a ${input.wheelDiameter}x${input.wheelWidth} wheel with ${input.wheelOffset}mm offset is a ${rubbingRisk}-risk ${vehicleLabel(input)} setup. ${trimmingLikely ? "Expect liner movement or trimming." : "Trimming is unlikely for normal street driving."} ${bodyMountChopLikely ? "A body mount chop may be needed at full lock or off-road." : "A body mount chop is not likely."}`,
     warnings,
     recommendations
   };
@@ -115,6 +115,11 @@ function buildCoreFitmentReport(input: FitmentInput): FitmentReport {
 
 export function assessFitment(input: FitmentInput): FitmentReport {
   return buildCoreFitmentReport(input);
+}
+
+function vehicleLabel(input: FitmentInput) {
+  const label = [input.year, input.make, input.model].filter(Boolean).join(" ").trim();
+  return label || "truck";
 }
 
 export function buildPremiumFitmentInsights(input: FitmentInput, report = buildCoreFitmentReport(input)): PremiumFitmentInsights {
