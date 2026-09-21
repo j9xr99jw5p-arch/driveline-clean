@@ -1141,6 +1141,19 @@ p {
   line-height: 1.72;
 }
 
+.view-full-build {
+  display: grid;
+  justify-items: start;
+  gap: 1.25rem;
+  margin-top: 1.15rem;
+}
+
+.view-full-build-details {
+  display: grid;
+  gap: 1.25rem;
+  width: 100%;
+}
+
 .build-facts {
   display: flex;
   flex-wrap: wrap;

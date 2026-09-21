@@ -3,7 +3,14 @@ import type { VerifiedBuild } from "@/lib/types";
 
 export function getReviewedBuildSummary(build: VerifiedBuild) {
   const reviewedSummary = build.build_summary?.trim();
-  if (reviewedSummary && !looksLikeLegacyBuildSummary(reviewedSummary)) return reviewedSummary;
+  if (
+    reviewedSummary &&
+    !looksLikeLegacyBuildSummary(reviewedSummary) &&
+    !looksLikePartsCatalogSummary(reviewedSummary)
+  ) {
+    return stripPartsCatalogFromSummary(reviewedSummary);
+  }
+
   return createLocalBuildSummary(build);
 }
 
@@ -17,23 +24,17 @@ export function createLocalBuildSummary(build: VerifiedBuild) {
     lift ? `${lift}` : null,
     suspension && suspension !== "Unknown" && suspension !== "Suspension setup not listed" ? suspension : null
   ].filter((part): part is string => Boolean(part));
-  const extraMods = [
-    build.lighting_upgrades ? `Lighting upgrades include ${build.lighting_upgrades}.` : null,
-    build.favorite_modifications ? `The owner also called out ${build.favorite_modifications} as worthwhile mods.` : null
-  ].filter(Boolean).join(" ");
   const opening = createOpeningSentence(title, setupParts);
   const fitmentResult = createFitmentResultSentence(build);
   const copyAdvice = createCopyAdviceSentence(build);
 
-  return [opening, fitmentResult, extraMods, copyAdvice].filter(Boolean).join(" ");
+  return [opening, fitmentResult, copyAdvice].filter(Boolean).join(" ");
 }
 
 export function buildSummaryPrompt(build: VerifiedBuild) {
-  return `Write a concise, useful Tacoma build explanation in a confident fitment-review style.
+  return `Write a concise fitment summary for this truck in a confident review style.
 
-Make it sound like advice from someone who understands Tacoma fitment, not a database report. Use a conversational structure: first describe the vehicle and setup naturally, then explain the real-world fitment result, then explain what someone should expect before copying it.
-
-Avoid stiff phrases like "is running X with Y with Z", "trimming: yes", "body mount chop: no", "classified as low risk", and "reported work is". Vary the sentence structure so summaries do not all sound identical. Mention the vehicle, tire size, wheel size/offset, lift/suspension, rubbing, trimming, and body mount chop only if that data exists. Do not exaggerate. Do not invent missing details. Keep it around 90-150 words.
+Cover the vehicle, tire/wheel/lift setup, and the real-world fitment result (rubbing, trimming, body mount chop) only if that data exists. Do not list lighting, interior, armor, recovery, or extra mods. Keep it around 70-110 words. Do not invent missing details. Do not mention Tacoma unless this truck is a Toyota Tacoma.
 
 Raw build:
 ${JSON.stringify({
@@ -56,14 +57,22 @@ ${JSON.stringify({
     suspension_brand: build.suspension_brand,
     suspension_model: build.suspension_model,
     suspension_type: build.suspension_type,
-    lighting_upgrades: build.lighting_upgrades,
-    favorite_modifications: build.favorite_modifications,
     rubbing_severity: build.rubbing_severity,
     trimming_required: formatBoolean(build.trimming_required),
     body_mount_chop: formatBoolean(build.body_mount_chop),
     fitment_risk: build.fitment_risk,
     notes: build.notes
   }, null, 2)}`;
+}
+
+function looksLikePartsCatalogSummary(summary: string) {
+  const lower = summary.toLowerCase();
+  return (
+    lower.includes("lighting upgrades include") ||
+    lower.includes("as worthwhile mods") ||
+    lower.includes("favorite modifications") ||
+    summary.length > 900
+  );
 }
 
 function looksLikeLegacyBuildSummary(summary: string) {
@@ -75,6 +84,14 @@ function looksLikeLegacyBuildSummary(summary: string) {
     "classified as",
     "reported work is"
   ].some((phrase) => lower.includes(phrase));
+}
+
+function stripPartsCatalogFromSummary(summary: string) {
+  return summary
+    .replace(/\s*Lighting upgrades include[\s\S]*?(?=\s+The owner also called out|\s+If you are copying|$)/i, "")
+    .replace(/\s*The owner also called out[\s\S]*?as worthwhile mods\./gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 function formatNaturalWheelTireCombo(build: VerifiedBuild) {
@@ -98,12 +115,12 @@ function formatNaturalWheelTireCombo(build: VerifiedBuild) {
 
 function createOpeningSentence(title: string, setupParts: string[]) {
   const setup = setupParts.join(", ");
-  if (!setup) return `${title} has a Tacoma fitment setup worth comparing against before you commit to a build.`;
+  if (!setup) return `${title} has a fitment setup worth comparing against before you commit to a build.`;
 
   const variant = title.length % 3;
   if (variant === 0) return `${title} pairs ${setup}.`;
   if (variant === 1) return `On this ${title}, the setup centers on ${setup}.`;
-  return `${title} uses ${setup}, giving it a practical reference point for similar Tacoma builds.`;
+  return `${title} uses ${setup}, giving it a practical reference point for similar builds.`;
 }
 
 function createFitmentResultSentence(build: VerifiedBuild) {
