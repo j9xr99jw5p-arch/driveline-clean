@@ -76,6 +76,63 @@ export async function getSpendableCreditBalance(supabase: SupabaseClient, userId
   };
 }
 
+export async function createModRequest(supabase: SupabaseClient) {
+  const { data, error } = await supabase.from("mod_requests").insert({}).select("id").maybeSingle();
+  if (error) {
+    console.error("Creating mod_request failed", error);
+    return null;
+  }
+
+  return typeof data?.id === "string" ? data.id : null;
+}
+
+export async function reserveSpendableCredits({
+  supabase,
+  userId,
+  amount,
+  modRequestId = null
+}: {
+  supabase: SupabaseClient;
+  userId: string;
+  amount: number;
+  modRequestId?: string | null;
+}) {
+  const { data, error } = await supabase.rpc("reserve_credits", {
+    p_user_id: userId,
+    p_amount: amount,
+    p_mod_request_id: modRequestId
+  });
+
+  if (error) throw error;
+
+  if (data !== true) {
+    const available = await getSpendableCreditBalance(supabase, userId);
+    return { ok: false as const, available: available.balance };
+  }
+
+  return { ok: true as const, available: null };
+}
+
+export async function refundSpendableCredits({
+  supabase,
+  userId,
+  amount,
+  modRequestId = null
+}: {
+  supabase: SupabaseClient;
+  userId: string;
+  amount: number;
+  modRequestId?: string | null;
+}) {
+  const { error } = await supabase.rpc("refund_credits", {
+    p_user_id: userId,
+    p_amount: amount,
+    p_mod_request_id: modRequestId
+  });
+
+  if (error) console.error("refund_credits failed", error);
+}
+
 export function isUniqueCreditGrantViolation(error: unknown) {
   const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
   const message = error instanceof Error ? error.message : String(error);

@@ -3,12 +3,18 @@ import { headers } from "next/headers";
 import { z } from "zod";
 import { assessFitment, buildPremiumFitmentInsights, buildPremiumWarnings, normalizeFitmentInput } from "@/lib/fitment";
 import { consumeFreeFitmentCheck, getFreeFitmentCheckQuota } from "@/lib/freeFitmentChecks";
-import { consumePremiumFitmentCredit, getFitmentEntitlementForCurrentUser } from "@/lib/fitmentEntitlements";
+import { getFitmentEntitlementForCurrentUser } from "@/lib/fitmentEntitlements";
 import { saveGarageVehicleConfiguration } from "@/lib/garage";
+import {
+  createModRequest,
+  refundSpendableCredits,
+  reserveSpendableCredits
+} from "@/lib/spendableCredits";
 import { getCurrentSupabaseUser } from "@/lib/supabase/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { findMatchingVerifiedBuilds } from "@/lib/verifiedBuildMatch";
+import { calculateCredits, normalizeModTags } from "@/src/lib/credits";
 
 const inputSchema = z.object({
   year: z.coerce.number().int().min(1995).max(2035),
@@ -37,16 +43,23 @@ const aiReportSchema = z.object({
   disclaimer: z.string()
 });
 
+const creditUsageSchema = {
+  photoCount: z.coerce.number().int().min(0).max(3).optional(),
+  modTags: z.array(z.string().trim().max(40)).max(12).optional()
+};
+
 const schema = z.union([
   inputSchema.extend({
     mode: z.enum(["free", "premium"]).optional(),
-    requestId: z.string().trim().min(8).max(120).optional()
+    requestId: z.string().trim().min(8).max(120).optional(),
+    ...creditUsageSchema
   }),
   z.object({
     input: inputSchema,
     mode: z.enum(["free", "premium"]).default("free"),
     requestId: z.string().trim().min(8).max(120).optional(),
-    aiExplanation: aiReportSchema.nullish()
+    aiExplanation: aiReportSchema.nullish(),
+    ...creditUsageSchema
   })
 ]);
 
@@ -61,21 +74,26 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid fitment input" }, { status: 400 });
 
   const parsedInput = "input" in parsed.data ? parsed.data.input : parsed.data;
-  const requestId = "input" in parsed.data ? parsed.data.requestId ?? null : parsed.data.requestId ?? null;
   const aiExplanation = "input" in parsed.data ? parsed.data.aiExplanation ?? null : null;
 
   const input = normalizeFitmentInput(parsedInput);
+  const requiredCredits = calculateCredits({
+    photoCount: parsed.data.photoCount ?? 0,
+    modTags: normalizeModTags(parsed.data.modTags)
+  });
   const deterministicReport = assessFitment(input);
   const entitlement = await getFitmentEntitlementForCurrentUser();
   const freeQuota = await getFreeFitmentCheckQuota();
-  const billing = freeQuota.unlimited || freeQuota.canRunFreeCheck ? "free" : entitlement.canRunPremiumCheck ? "paid" : null;
+  const billing = freeQuota.unlimited
+    ? "free"
+    : entitlement.isAuthenticated
+      ? "credits"
+      : freeQuota.canRunFreeCheck
+        ? "free"
+        : null;
 
   if (!billing) {
     return NextResponse.json({ error: outOfChecksMessage, freeChecks: freeQuota }, { status: 429 });
-  }
-
-  if (billing === "paid" && !entitlement.isAuthenticated) {
-    return NextResponse.json({ error: "Sign in before using a paid fitment check." }, { status: 401 });
   }
 
   if (billing === "free" && !freeQuota.unlimited && isFreeCheckLimited(await getRequestIp())) {
@@ -88,7 +106,7 @@ export async function POST(request: Request) {
 
   const report = {
     ...deterministicReport,
-    accessTier: billing === "paid" ? "premium" as const : "free" as const,
+    accessTier: billing === "credits" ? "premium" as const : "free" as const,
     aiExplanation,
     premiumWarnings: buildPremiumWarnings(input, deterministicReport),
     premiumInsights,
@@ -107,9 +125,7 @@ export async function POST(request: Request) {
         garageSyncError = await persistSignedInCheck({
           userId: entitlement.userId,
           input,
-          report,
-          consumePaidCredit: false,
-          requestId
+          report
         });
       } catch (error) {
         console.error("Signed-in free check save failed", error);
@@ -120,36 +136,69 @@ export async function POST(request: Request) {
     return NextResponse.json({ report, garageSyncError, entitlement, freeChecks: consumed });
   }
 
-  let garageSyncError: string | null = null;
-  try {
-    garageSyncError = await persistSignedInCheck({
-      userId: entitlement.userId!,
-      input,
-      report,
-      consumePaidCredit: true,
-      requestId
-    });
-  } catch (error) {
-    console.error("Paid fitment check failed", error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not use a paid check. Please try again." }, { status: 500 });
+  if (!entitlement.userId) {
+    return NextResponse.json({ error: "Sign in before using credits." }, { status: 401 });
   }
 
-  const updatedEntitlement = await getFitmentEntitlementForCurrentUser();
-  return NextResponse.json({ report, garageSyncError, entitlement: updatedEntitlement, freeChecks: freeQuota });
+  const admin = createSupabaseAdminClient();
+  const modRequestId = await createModRequest(admin);
+
+  let reserved;
+  try {
+    reserved = await reserveSpendableCredits({
+      supabase: admin,
+      userId: entitlement.userId,
+      amount: requiredCredits,
+      modRequestId
+    });
+  } catch (error) {
+    console.error("Spendable credit reserve failed", error);
+    return NextResponse.json({ error: "Could not use your credits. Please try again." }, { status: 500 });
+  }
+
+  if (!reserved.ok) {
+    return NextResponse.json({
+      error: outOfChecksMessage,
+      required: requiredCredits,
+      available: reserved.available,
+      freeChecks: freeQuota
+    }, { status: 402 });
+  }
+
+  try {
+    const garageSyncError = await persistSignedInCheck({
+      userId: entitlement.userId,
+      input,
+      report
+    });
+    const updatedEntitlement = await getFitmentEntitlementForCurrentUser();
+    return NextResponse.json({
+      report,
+      garageSyncError,
+      entitlement: updatedEntitlement,
+      freeChecks: freeQuota,
+      creditsCharged: requiredCredits
+    });
+  } catch (error) {
+    console.error("Credit fitment check failed", error);
+    await refundSpendableCredits({
+      supabase: admin,
+      userId: entitlement.userId,
+      amount: requiredCredits,
+      modRequestId
+    });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not use your credits. Please try again." }, { status: 500 });
+  }
 }
 
 async function persistSignedInCheck({
   userId,
   input,
-  report,
-  consumePaidCredit,
-  requestId
+  report
 }: {
   userId: string;
   input: ReturnType<typeof normalizeFitmentInput>;
   report: ReturnType<typeof assessFitment> & Record<string, unknown>;
-  consumePaidCredit: boolean;
-  requestId: string | null;
 }) {
   const supabase = await createSupabaseServerClient();
   const currentUser = await getCurrentSupabaseUser(supabase);
@@ -157,7 +206,7 @@ async function persistSignedInCheck({
     throw new Error("Sign in before using a paid fitment check.");
   }
 
-  const { data: assessment, error } = await supabase.from("fitment_assessments").insert({
+  const { error } = await supabase.from("fitment_assessments").insert({
     user_id: userId,
     input,
     report,
@@ -165,39 +214,15 @@ async function persistSignedInCheck({
     rubbing_risk: report.rubbingRisk,
     trimming_likely: report.trimmingLikely,
     body_mount_chop_likely: report.bodyMountChopLikely
-  }).select("id").maybeSingle();
+  });
   if (error) throw new Error("Could not save assessment.");
 
-  let garageSyncError: string | null = null;
   try {
     await saveGarageVehicleConfiguration(supabase, userId, input);
+    return null;
   } catch {
-    garageSyncError = "We’re having trouble saving your garage details right now. Your fitment report is still available.";
+    return "We’re having trouble saving your garage details right now. Your fitment report is still available.";
   }
-
-  if (consumePaidCredit) {
-    const admin = createSupabaseAdminClient();
-    try {
-      await consumePremiumFitmentCredit({
-        supabase: admin,
-        userId,
-        fitmentCheckId: typeof assessment?.id === "string" ? assessment.id : null,
-        requestId,
-        metadata: {
-          tire_size: input.tireSize,
-          wheel_diameter: input.wheelDiameter,
-          wheel_width: input.wheelWidth,
-          wheel_offset: input.wheelOffset,
-          lift_height: input.liftHeight
-        }
-      });
-    } catch (consumeError) {
-      console.error("Paid fitment credit consume failed", consumeError);
-      throw new Error("Could not use a paid check. Please try again.");
-    }
-  }
-
-  return garageSyncError;
 }
 
 async function getRequestIp() {

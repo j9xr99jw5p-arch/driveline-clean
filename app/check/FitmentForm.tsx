@@ -34,6 +34,7 @@ type FitmentFormEntitlement = {
   isAuthenticated: boolean;
   premiumChecksRemaining: number;
   canRunPremiumCheck: boolean;
+  spendableCredits?: number;
 };
 
 type FitmentFormFreeChecks = {
@@ -271,7 +272,9 @@ export function FitmentForm({
       body: JSON.stringify({
         input,
         requestId: crypto.randomUUID(),
-        aiExplanation: normalizedAiExplanation
+        aiExplanation: normalizedAiExplanation,
+        photoCount: photos.length,
+        modTags: selectedModTags
       })
     });
     const payload = await response.json();
@@ -448,6 +451,8 @@ export function FitmentForm({
               photoCount={photos.length}
               modTags={selectedModTags}
               unlimited={freeChecks.unlimited}
+              initialBalance={entitlement.spendableCredits ?? null}
+              initialSignedIn={entitlement.isAuthenticated}
               onCanAffordChange={setCanAffordCredits}
             />
             <button
@@ -485,8 +490,11 @@ function checkHint(
     return `${freeChecks.remaining} of ${freeChecks.limit} free checks left.`;
   }
 
-  if (entitlement.canRunPremiumCheck) {
-    return "Buy more credits when this job costs more than you have left.";
+  if (entitlement.isAuthenticated) {
+    const credits = entitlement.spendableCredits ?? 0;
+    return credits > 0
+      ? `You have ${credits} ${credits === 1 ? "credit" : "credits"}. This check uses the amount shown above.`
+      : "Buy more credits when this job costs more than you have left.";
   }
 
   return "Sign in for 12 free credits, then buy 50, 150, or Priority.";

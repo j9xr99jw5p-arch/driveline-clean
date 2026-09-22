@@ -38,7 +38,7 @@ export default async function AccountPage() {
           <div>
             <p className="eyebrow">Account</p>
             <h1>Sign in to save fitment checks.</h1>
-            <p className="lead">Use a secure sign-in link to save fitment checks and buy more when the free ones are used.</p>
+            <p className="lead">Use a secure sign-in link to get 12 free credits, save fitment checks, and buy more when you need them.</p>
           </div>
           <SignInForm />
         </div>

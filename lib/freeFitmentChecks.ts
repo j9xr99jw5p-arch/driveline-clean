@@ -31,13 +31,24 @@ export function emptyFreeFitmentCheckQuota(): FreeFitmentCheckQuota {
 }
 
 export async function getFreeFitmentCheckQuota(): Promise<FreeFitmentCheckQuota> {
-  if (await currentUserIsAdmin()) {
+  const currentUser = await getCurrentUserForQuota();
+  if (isAdminEmail(currentUser?.user.email)) {
     return {
       limit: freeFitmentCheckLimit,
       used: 0,
       remaining: freeFitmentCheckLimit,
       canRunFreeCheck: true,
       unlimited: true
+    };
+  }
+
+  if (currentUser) {
+    return {
+      limit: 0,
+      used: 0,
+      remaining: 0,
+      canRunFreeCheck: false,
+      unlimited: false
     };
   }
 
@@ -80,12 +91,11 @@ export async function consumeFreeFitmentCheck(): Promise<FreeFitmentCheckQuota &
   };
 }
 
-async function currentUserIsAdmin() {
-  if (!hasSupabaseServerEnv()) return false;
+async function getCurrentUserForQuota() {
+  if (!hasSupabaseServerEnv()) return null;
 
   const supabase = await createSupabaseServerClient();
-  const currentUser = await getCurrentSupabaseUser(supabase);
-  return isAdminEmail(currentUser?.user.email);
+  return getCurrentSupabaseUser(supabase);
 }
 
 async function readSignedInFreeChecksUsed() {

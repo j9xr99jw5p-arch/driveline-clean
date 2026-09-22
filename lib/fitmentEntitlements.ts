@@ -166,7 +166,7 @@ function normalizeFitmentEntitlement({
     spendableCredits,
     priority,
     premiumBuildAccess,
-    canRunPremiumCheck: spendableCredits > 0 || premiumChecksRemaining > 0 || legacyPaidAccess,
+    canRunPremiumCheck: spendableCredits > 0,
     canViewPremiumBuilds: premiumBuildAccess
   };
 }
