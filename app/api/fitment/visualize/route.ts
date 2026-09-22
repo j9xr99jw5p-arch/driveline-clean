@@ -8,6 +8,7 @@ import {
   imageModel,
   imageSize,
   parseVisionResult,
+  sourcePhotographInstruction,
   visionModel,
   type FitmentVisionResult,
   type FitmentVisualizeResult
@@ -145,8 +146,9 @@ async function editOneTruckPhoto(
       {
         role: "user",
         parts: [
-          { text: buildImageEditPrompt(input, { index: index + 1, count }) },
-          { inline_data: { mime_type: customerImage.mimeType, data: customerImage.data } }
+          { text: sourcePhotographInstruction },
+          { inline_data: { mime_type: customerImage.mimeType, data: customerImage.data } },
+          { text: buildImageEditPrompt(input, { index: index + 1, count }) }
         ]
       }
     ],

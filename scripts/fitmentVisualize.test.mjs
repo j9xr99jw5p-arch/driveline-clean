@@ -28,11 +28,14 @@ const prompt = buildImageEditPrompt(
 
 assert.match(prompt, /1\. wrap a mustang red/);
 assert.match(prompt, /2\. lower it/);
-assert.match(prompt, /photo 2 of 2/);
-assert.match(prompt, /Applying only one requested change is a failed edit/);
+assert.match(prompt, /source photo 2 of 2/);
+assert.match(prompt, /CAMERA LOCK/);
+assert.match(prompt, /Do not rotate, orbit, pan, tilt/);
+assert.match(prompt, /same camera/);
+assert.match(prompt, /Missing a requested change is a failed edit/);
 assert.match(prompt, /Change nothing else/);
-assert.match(prompt, /LOCKED/);
 assert.match(prompt, /Leave them exactly as photographed/);
+assert.doesNotMatch(prompt, /another angle/);
 assert.doesNotMatch(prompt, /stock ride height/);
 assert.doesNotMatch(prompt, /Exact setup to match/);
 

@@ -268,8 +268,9 @@ async function editOnePhoto(
       {
         role: "user",
         parts: [
-          { text: buildImageEditPrompt(body, modTags, { index: index + 1, count }) },
-          { inline_data: { mime_type: customerImage.mimeType, data: customerImage.data } }
+          { text: "SOURCE PHOTOGRAPH. Edit this attached image in place. Keep this exact camera. Do not replace it with a new photo of a similar truck." },
+          { inline_data: { mime_type: customerImage.mimeType, data: customerImage.data } },
+          { text: buildImageEditPrompt(body, modTags, { index: index + 1, count }) }
         ]
       }
     ],
@@ -380,16 +381,17 @@ function buildImageEditPrompt(
     "";
   const tagList = modTags.length ? modTags.join(", ") : "none";
   const photoLine = photo.count > 1
-    ? `This is photo ${photo.index} of ${photo.count} of the same vehicle. Apply every required change to this exact photo.`
-    : "Apply every required change to this exact photo.";
+    ? `This is source photo ${photo.index} of ${photo.count}. Edit this photograph only. Do not borrow a camera or viewpoint from any other photo.`
+    : "Edit this attached photograph only.";
 
   return [
-    "You are performing a surgical edit on one existing photograph. Start from this photo and change only the required items.",
+    "Task: in-place pixel edit of the attached photograph. The attached image is the canvas. Do not generate a new photo, a catalog shot, a studio shot, or a similar truck from a different viewpoint.",
     photoLine,
-    `Vehicle: ${truck || "the vehicle in this photo"}. Keep this exact vehicle.`,
+    `Identity lock: this is the same physical vehicle as in the attached photo${truck ? ` (${truck})` : ""}. Do not substitute a different example of this make and model.`,
     `Mod tags: ${tagList}.`,
-    requestText ? `REQUIRED CHANGES:\n${requestText}` : "REQUIRED CHANGES: apply the listed mod tags only.",
+    requestText ? `REQUIRED CHANGES (apply all of these on this same camera):\n${requestText}` : "REQUIRED CHANGES: apply the listed mod tags only, on this same camera.",
     extraImagePrompt,
+    "CAMERA LOCK: Keep the exact same viewpoint, height, distance, zoom, crop, framing, and perspective. Do not rotate, orbit, pan, tilt, or walk around the vehicle. Do not switch angles to show the mods more clearly. The vehicle must occupy the same place in the frame.",
     "Change nothing else. No extra mods, no new parts, no restyling, no background cleanup, no crop, no zoom."
   ]
     .filter(Boolean)

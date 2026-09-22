@@ -40,40 +40,49 @@ export function buildVisionPrompt() {
   ].join(" ");
 }
 
+export const sourcePhotographInstruction =
+  "SOURCE PHOTOGRAPH. Edit this attached image in place. Keep this exact camera. Do not replace it with a new photo of a similar truck.";
+
 export function buildImageEditPrompt(
   input: FitmentInput,
   photo: { index: number; count: number } = { index: 1, count: 1 }
 ) {
   const modification = buildModificationDescription(input);
   const photoLine = photo.count > 1
-    ? `This is photo ${photo.index} of ${photo.count} of the same vehicle. Apply every required change to this exact photo. Do not skip a requested change because another angle shows it more clearly.`
-    : "Apply every required change to this exact photo.";
+    ? `This is source photo ${photo.index} of ${photo.count}. Edit this photograph only. Do not borrow a camera or viewpoint from any other photo.`
+    : "Edit this attached photograph only.";
 
   return [
-    "You are performing a surgical edit on one existing photograph. Start from this photo and change only the required items. Do not generate a new car, a similar car, a studio shot, or a restyle.",
+    "Task: in-place pixel edit of the attached photograph. The attached image is the canvas. Do not generate a new photo, a catalog shot, a studio shot, or a similar truck from a different viewpoint.",
     "",
     photoLine,
     "",
-    "REQUIRED CHANGES (every item is mandatory on this photo):",
+    "CAMERA LOCK — violating any item is a failed edit:",
+    "- Keep the exact same camera: viewpoint, height, distance, zoom, crop, framing, perspective, and lens look.",
+    "- Do not rotate, orbit, pan, tilt, or walk around the vehicle.",
+    "- Do not switch from rear to front, side to three-quarter, or any other new angle to show the mods more clearly.",
+    "- The vehicle must occupy the same place in the frame. Horizon and vanishing lines stay put.",
+    "- Do not recompose, uncrop, recrop, or zoom in on the truck.",
+    "",
+    "REQUIRED CHANGES (apply all of these on this same camera):",
     modification,
     extraImagePrompt ? `\n${extraImagePrompt}` : "",
     "",
-    "LOCKED — COPY UNCHANGED FROM THE ORIGINAL PHOTO:",
-    "- Camera: same angle, zoom, crop, framing, distance, and lens look",
-    "- Scene: same background, ground, sky, weather, time of day, and lighting",
-    "- Identity: same year, make, model, body, badges, glass, interior glimpses, dirt, and damage",
-    "- Paint and finish, unless a wrap, paint, or color change was requested",
+    "LEAVE UNCHANGED unless listed above:",
+    "- Background, ground, sky, weather, time of day, lighting",
+    "- Body, badges, glass, interior glimpses, dirt, damage",
+    "- Paint and finish, unless wrap, paint, or color was requested",
     "- Wheels, tires, and stance, unless those were requested",
-    "- Bumpers, grille, lights, mirrors, body lines, and accessories, unless those were requested",
+    "- Bumpers, grille, lights, mirrors, accessories, unless those were requested",
     "",
     "RULES:",
-    "1. Apply ALL required changes together. If the owner asked for a wrap and a lower stance, this photo must show both. Applying only one requested change is a failed edit.",
+    "1. Apply every required change on this exact viewpoint. Missing a requested change is a failed edit.",
     "2. Change nothing else. No extra mods, no new parts, no restyling, no background cleanup, no crop, no zoom.",
-    "3. The only extra edits allowed are unavoidable physical consequences of a required change, such as a lower stance reducing fender gap and ground clearance, or a wrap covering the painted body panels.",
+    "3. The only extra edits allowed are unavoidable physical consequences of a required change, such as a lower stance reducing fender gap, or a wrap covering painted body panels.",
     "4. If a request is relative (lower, taller, bigger) with no measurement, make a clear, realistic change using this photo as the baseline.",
     "5. If a request gives a specific spec, match that spec as closely as a photorealistic edit allows.",
     "",
-    "The result must look like the original photograph with only the required changes applied."
+    "The output must look like the original photograph with only the required changes applied: same camera, same truck, same scene."
   ].join("\n");
 }
 
@@ -101,7 +110,7 @@ function buildModificationDescription(input: FitmentInput) {
 
   return [
     checklist,
-    `Vehicle: ${truck || "the vehicle in this photo"}. Keep this exact vehicle.`,
+    `Identity lock: this is the same physical vehicle as in the attached photo${truck ? ` (${truck})` : ""}. Do not substitute a different example of this make and model.`,
     ...buildSupportingSpecs(customerRequest)
   ].join("\n");
 }
