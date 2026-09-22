@@ -66,7 +66,6 @@ export default async function AccountPage() {
   const fitmentEntitlement = await getFitmentEntitlementForUser(userId);
   const hasPaidAccess = isPaidPlanActive(plan?.plan, plan?.status);
   const planName = fitmentEntitlement.canViewPremiumBuilds || hasPaidAccess ? "Premium" : "Free";
-  const checkLimit = "3";
   const displayName = profile?.display_name || user.email || "Signed-in user";
   const canAccessAdmin = isAdminEmail(user.email);
   const showDebug = process.env.NODE_ENV === "development";
@@ -84,23 +83,27 @@ export default async function AccountPage() {
         <div>
           <p className="eyebrow">Account</p>
           <h1>Your account</h1>
-          <p className="lead">Manage your fitment checks, extra check credits, and billing access.</p>
+          <p className="lead">Manage your credits, Priority access, and billing.</p>
         </div>
         <div className="card">
           <div className="spec-row"><span className="muted">Profile</span><strong>{displayName}</strong></div>
           <div className="spec-row"><span className="muted">Role</span><strong>{profile?.role ?? "user"}</strong></div>
           <div className="spec-row"><span className="muted">Email</span><strong>{user.email}</strong></div>
           <div className="spec-row"><span className="muted">Plan</span><strong>{planName}</strong></div>
-          <div className="spec-row"><span className="muted">Free checks used</span><strong>{canAccessAdmin ? "Unlimited" : `${Math.min(Number(plan?.fitment_checks_used ?? 0), 3)} / ${checkLimit}`}</strong></div>
+          <div className="spec-row"><span className="muted">Credits</span><strong>{canAccessAdmin ? "Unlimited" : fitmentEntitlement.spendableCredits}</strong></div>
+          <div className="spec-row"><span className="muted">Priority</span><strong>{fitmentEntitlement.priority || hasPaidAccess ? "On" : "Off"}</strong></div>
           <div className="spec-row"><span className="muted">Subscription</span><strong>{hasPaidAccess ? plan?.status : subscription?.status ?? "none"}</strong></div>
           <hr style={{ borderColor: "var(--border-color)", margin: "20px 0" }} />
-          <h2>One-time fitment credits</h2>
-          <div className="spec-row"><span className="muted">Extra checks remaining</span><strong>{fitmentEntitlement.premiumChecksRemaining}</strong></div>
+          <h2>Buy credits</h2>
           <div className="spec-row"><span className="muted">Verified Builds library</span><strong>{fitmentEntitlement.canViewPremiumBuilds ? "Unlocked" : "Locked"}</strong></div>
-          <p className="fine" style={{ marginTop: 10 }}>$14 one-time adds two more full fitment checks and unlocks the verified builds library.</p>
-          <div style={{ marginTop: 16 }}><FitmentCreditsCheckoutButton /></div>
+          <p className="fine" style={{ marginTop: 10 }}>$4.99 adds 50 credits. $14.99 adds 150. $25/month adds 250 credits and Priority.</p>
+          <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
+            <FitmentCreditsCheckoutButton pack="credits_50" label="50 credits — $4.99" />
+            <FitmentCreditsCheckoutButton pack="credits_150" label="150 credits — $14.99" />
+            <FitmentCreditsCheckoutButton pack="priority" label="Priority — $25/month" />
+          </div>
           <hr style={{ borderColor: "var(--border-color)", margin: "20px 0" }} />
-          <h2>Legacy subscription billing</h2>
+          <h2>Billing</h2>
           <div style={{ marginTop: 20 }}><PortalButton /></div>
           <div style={{ marginTop: 12 }}><SignOutButton /></div>
           {canAccessAdmin ? (

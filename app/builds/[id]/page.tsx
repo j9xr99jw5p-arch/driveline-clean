@@ -49,7 +49,7 @@ export default async function BuildDetailPage({ params }: { params: Promise<{ id
                 <span key={label}>{label}</span>
               ))}
             </div>
-            <p className="muted">$14 one-time gets two more fitment checks and unlocks the verified builds library.</p>
+            <p className="muted">A credit pack unlocks the verified builds library. $4.99 for 50 credits, $14.99 for 150, or $25/month for Priority.</p>
             <div className="actions" style={{ justifyContent: "center" }}>
               <FitmentCreditsCheckoutButton label="Unlock it" className="button primary" />
               <Link className="button" href="/builds">Back to Builds Preview</Link>

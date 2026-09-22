@@ -89,7 +89,6 @@ export function FitmentForm({
   const router = useRouter();
   const [status, setStatus] = useState<string | null>(null);
   const [isWorking, setIsWorking] = useState(false);
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   const [vehicle, setVehicle] = useState<VehicleSelection>({ year: "", make: "", model: "" });
   const [description, setDescription] = useState<FitmentDescription>(emptyDescription);
@@ -147,7 +146,7 @@ export function FitmentForm({
     }
 
     if (!canRunCheck) {
-      setStatus("You’ve used your 3 free fitment checks. Get 2 more checks for $14.");
+      setStatus("You need more credits. $4.99 adds 50, $14.99 adds 150, or $25/month adds 250 with Priority.");
       return;
     }
 
@@ -288,34 +287,13 @@ export function FitmentForm({
     router.push("/results");
   }
 
-  async function startCheckout() {
+  function startCheckout() {
     if (!entitlement.isAuthenticated) {
       router.push("/account?auth=required");
       return;
     }
 
-    setIsCheckingOut(true);
-    setStatus(null);
-
-    try {
-      const response = await fetch("/api/checkout/fitment-credits", { method: "POST" });
-      const payload = await response.json();
-
-      if (!response.ok || !payload?.url) {
-        if (payload?.redirectUrl) {
-          router.push(payload.redirectUrl);
-          return;
-        }
-
-        throw new Error(payload?.error ?? "We’re having trouble opening checkout right now.");
-      }
-
-      window.location.assign(payload.url);
-    } catch (error) {
-      console.error("Fitment credits checkout failed", error);
-      setStatus(error instanceof Error ? error.message : "We’re having trouble opening checkout right now.");
-      setIsCheckingOut(false);
-    }
+    router.push("/pricing");
   }
 
   return (
@@ -488,8 +466,8 @@ export function FitmentForm({
       </form>
 
       {status ? <p className="verify-status">{status}</p> : null}
-      {!canRunCheck ? (
-        <MoreChecksCard entitlement={entitlement} isCheckingOut={isCheckingOut} onCheckout={startCheckout} />
+      {!canRunCheck || !canAffordCredits ? (
+        <MoreChecksCard entitlement={entitlement} onCheckout={startCheckout} />
       ) : null}
     </>
   );
@@ -508,32 +486,25 @@ function checkHint(
   }
 
   if (entitlement.canRunPremiumCheck) {
-    return `${entitlement.premiumChecksRemaining} paid ${entitlement.premiumChecksRemaining === 1 ? "check" : "checks"} remaining.`;
+    return "Buy more credits when this job costs more than you have left.";
   }
 
-  return "You’ve used your 3 free checks. Get 2 more for $14.";
+  return "Sign in for 12 free credits, then buy 50, 150, or Priority.";
 }
 
 function MoreChecksCard({
-  entitlement,
-  isCheckingOut,
   onCheckout
 }: {
   entitlement: FitmentFormEntitlement;
-  isCheckingOut: boolean;
   onCheckout: () => void;
 }) {
   return (
     <div className="check-premium-card">
-      <p className="eyebrow">Need another check?</p>
-      <h3>Two more fitment checks</h3>
-      <p className="muted">$14 one-time. Same full report, plus the verified builds library.</p>
-      <div className="spec-row">
-        <span className="muted">Paid checks remaining</span>
-        <strong>{entitlement.premiumChecksRemaining}</strong>
-      </div>
-      <button className="button full" type="button" onClick={onCheckout} disabled={isCheckingOut}>
-        {isCheckingOut ? "Opening checkout..." : "Get 2 more checks"}
+      <p className="eyebrow">Need more credits?</p>
+      <h3>50, 150, or Priority</h3>
+      <p className="muted">$4.99 for 50 credits, $14.99 for 150, or $25/month for 250 credits and priority service.</p>
+      <button className="button full" type="button" onClick={onCheckout}>
+        See credit packs
       </button>
     </div>
   );

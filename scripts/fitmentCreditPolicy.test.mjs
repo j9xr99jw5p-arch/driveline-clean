@@ -17,8 +17,8 @@ import {
 const sql = readFileSync(new URL("../supabase/migrations/032_fitment_credit_entitlements.sql", import.meta.url), "utf8");
 const previewSql = readFileSync(new URL("../supabase/migrations/033_verified_build_preview_access.sql", import.meta.url), "utf8");
 const validUserId = "11111111-1111-4111-8111-111111111111";
-const expectedPriceId = "price_expected";
-const entitlementKey = "fitment_two_checks";
+const expectedPriceId = "price_1UIHFQAxOgxntpwRlocHgdap";
+const entitlementKey = "credits_50";
 
 class DuplicateFulfillmentError extends Error {}
 
@@ -79,21 +79,21 @@ assert.equal(processWebhook({
   session: paidSession("cs_success", "pi_success"),
   lineItems: [lineItem(expectedPriceId, 1)]
 }), "granted", "successful purchase grants");
-assert.equal(store.balance(validUserId), 2, "successful purchase grants exactly two credits");
+assert.equal(store.balance(validUserId), 50, "successful purchase grants the 50-credit pack");
 
 assert.equal(processWebhook({
   store,
   session: paidSession("cs_success", "pi_success"),
   lineItems: [lineItem(expectedPriceId, 1)]
 }), "duplicate", "duplicate completed webhook is idempotent");
-assert.equal(store.balance(validUserId), 2, "duplicate completed webhook does not add credits");
+assert.equal(store.balance(validUserId), 50, "duplicate completed webhook does not add credits");
 
 assert.equal(processWebhook({
   store,
   session: paidSession("cs_async_same_payment", "pi_success"),
   lineItems: [lineItem(expectedPriceId, 1)]
 }), "duplicate", "completed plus async-success with same payment intent is idempotent");
-assert.equal(store.balance(validUserId), 2, "async-success replay does not add credits");
+assert.equal(store.balance(validUserId), 50, "async-success replay does not add credits");
 
 assert.equal(processWebhook({
   store,
@@ -121,7 +121,7 @@ assert.equal(processWebhook({
   lineItems: [lineItem(expectedPriceId, 1)],
   priceId: undefined
 }), "skipped:missing_price_config", "missing env config fails safely");
-assert.equal(store.balance(validUserId), 2, "invalid webhook cases do not change balance");
+assert.equal(store.balance(validUserId), 50, "invalid webhook cases do not change balance");
 
 const singleCreditStore = new MemoryCreditStore();
 singleCreditStore.setBalance(validUserId, 1);
@@ -249,7 +249,7 @@ function processWebhook(input) {
       userId: result.userId,
       checkoutSessionId: session.id,
       paymentIntentId: session.payment_intent ?? null,
-      credits: 2
+      credits: 50
     });
     return "granted";
   } catch (error) {

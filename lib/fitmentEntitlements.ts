@@ -2,12 +2,13 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isPaidPlanActive } from "@/lib/billing";
 import { currentVerifiedBuildAccessLabel } from "@/lib/fitmentCreditSecurity";
+import { ensureStartingCredits, getSpendableCreditBalance } from "@/lib/spendableCredits";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getCurrentSupabaseUser } from "@/lib/supabase/auth";
 import { createSupabaseServerClient, hasSupabaseServerEnv } from "@/lib/supabase/server";
 
-export const fitmentTwoChecksEntitlementKey = "fitment_two_checks";
-export const fitmentTwoChecksCreditQuantity = 2;
+export const fitmentTwoChecksEntitlementKey = "credits_150";
+export const fitmentTwoChecksCreditQuantity = 1;
 
 type EntitlementAccountRow = {
   user_id: string;
@@ -24,6 +25,8 @@ export type FitmentEntitlement = {
   isAuthenticated: boolean;
   userId: string | null;
   premiumChecksRemaining: number;
+  spendableCredits: number;
+  priority: boolean;
   premiumBuildAccess: boolean;
   canRunPremiumCheck: boolean;
   canViewPremiumBuilds: boolean;
@@ -34,6 +37,8 @@ export function emptyFitmentEntitlement(): FitmentEntitlement {
     isAuthenticated: false,
     userId: null,
     premiumChecksRemaining: 0,
+    spendableCredits: 0,
+    priority: false,
     premiumBuildAccess: false,
     canRunPremiumCheck: false,
     canViewPremiumBuilds: false
@@ -53,7 +58,7 @@ export async function getFitmentEntitlementForCurrentUser(): Promise<FitmentEnti
 export async function getFitmentEntitlementForUser(userId: string): Promise<FitmentEntitlement> {
   const admin = createSupabaseAdminClient();
 
-  const [{ data: account }, { data: plan }] = await Promise.all([
+  const [{ data: account }, { data: plan }, spendableCredits] = await Promise.all([
     admin
       .from("fitment_credit_accounts")
       .select("user_id, premium_checks_remaining, premium_build_access")
@@ -63,13 +68,22 @@ export async function getFitmentEntitlementForUser(userId: string): Promise<Fitm
       .from("user_plans")
       .select("plan, status")
       .eq("user_id", userId)
-      .maybeSingle()
+      .maybeSingle(),
+    ensureStartingCredits(admin, userId).then(async (balance) => {
+      if (typeof balance === "number") {
+        const latest = await getSpendableCreditBalance(admin, userId);
+        return latest;
+      }
+      return getSpendableCreditBalance(admin, userId);
+    })
   ]);
 
   return normalizeFitmentEntitlement({
     userId,
     account: account as EntitlementAccountRow | null,
-    plan: plan as UserPlanRow | null
+    plan: plan as UserPlanRow | null,
+    spendableCredits: spendableCredits.balance,
+    priority: spendableCredits.priority
   });
 }
 
@@ -131,22 +145,28 @@ export async function consumePremiumFitmentCredit({
 function normalizeFitmentEntitlement({
   userId,
   account,
-  plan
+  plan,
+  spendableCredits,
+  priority
 }: {
   userId: string;
   account: EntitlementAccountRow | null;
   plan: UserPlanRow | null;
+  spendableCredits: number;
+  priority: boolean;
 }): FitmentEntitlement {
   const legacyPaidAccess = isPaidPlanActive(plan?.plan, plan?.status);
   const premiumChecksRemaining = Math.max(0, account?.premium_checks_remaining ?? 0);
-  const premiumBuildAccess = Boolean(account?.premium_build_access || legacyPaidAccess);
+  const premiumBuildAccess = Boolean(account?.premium_build_access || legacyPaidAccess || priority || spendableCredits > 0);
 
   return {
     isAuthenticated: true,
     userId,
     premiumChecksRemaining,
+    spendableCredits,
+    priority,
     premiumBuildAccess,
-    canRunPremiumCheck: premiumChecksRemaining > 0 || legacyPaidAccess,
+    canRunPremiumCheck: spendableCredits > 0 || premiumChecksRemaining > 0 || legacyPaidAccess,
     canViewPremiumBuilds: premiumBuildAccess
   };
 }

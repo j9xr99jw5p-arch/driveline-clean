@@ -87,7 +87,7 @@ export function CreditEstimate({
       ) : signedIn ? (
         <p>Checking your credit balance…</p>
       ) : (
-        <p>Sign in to use your credits.</p>
+        <p>Sign in to get 12 free credits.</p>
       )}
       {shortOnCredits ? (
         <p className="check-credit-short">

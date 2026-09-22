@@ -1,12 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import type { CreditPackKey } from "@/lib/creditPacks";
 
 export function FitmentCreditsCheckoutButton({
-  label = "Get 2 more checks",
+  label = "Get 150 credits — $14.99",
+  pack = "credits_150",
   className = "button primary full"
 }: {
   label?: string;
+  pack?: CreditPackKey;
   className?: string;
 }) {
   const [loading, setLoading] = useState(false);
@@ -17,7 +20,11 @@ export function FitmentCreditsCheckoutButton({
     setError(null);
 
     try {
-      const response = await fetch("/api/checkout/fitment-credits", { method: "POST" });
+      const response = await fetch("/api/checkout/fitment-credits", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pack })
+      });
       const payload = await response.json();
 
       if (!response.ok || !payload?.url) {

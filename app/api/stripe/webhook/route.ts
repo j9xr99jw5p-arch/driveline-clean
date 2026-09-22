@@ -12,14 +12,18 @@ import {
   upsertUserPlanForSubscription
 } from "@/lib/billing";
 import {
-  fitmentTwoChecksCreditQuantity,
-  fitmentTwoChecksEntitlementKey,
-  grantFitmentPurchaseEntitlement
-} from "@/lib/fitmentEntitlements";
+  creditPacks,
+  findCreditPackByEntitlementKey,
+  findCreditPackByPriceId,
+  getCreditPackPriceId,
+  listConfiguredOneTimePriceIds
+} from "@/lib/creditPacks";
+import { grantFitmentPurchaseEntitlement } from "@/lib/fitmentEntitlements";
 import {
   currentVerifiedBuildAccessLabel,
   validateFitmentCreditFulfillment
 } from "@/lib/fitmentCreditSecurity";
+import { grantSpendableCredits, isUniqueCreditGrantViolation, setCreditPriority } from "@/lib/spendableCredits";
 import { buildOrderItemRows, normalizeSelectedItems } from "@/lib/packCheckout";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
@@ -107,10 +111,13 @@ export async function POST(request: Request) {
       case "invoice.paid":
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
-        const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription?.id;
+        const subscriptionId = readInvoiceSubscriptionId(invoice);
         if (subscriptionId) {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
           await syncSubscription(subscription);
+          if (event.type === "invoice.paid") {
+            await grantPrioritySubscriptionCredits(invoice, subscription);
+          }
         }
         break;
       }
@@ -211,6 +218,11 @@ export async function POST(request: Request) {
       currentPeriodStart,
       currentPeriodEnd
     });
+
+    const hasPriorityPrice = subscription.items.data.some(
+      (item) => item.price?.id === getCreditPackPriceId(creditPacks.priority)
+    );
+    await setCreditPriority(supabase, userId, hasPriorityPrice && activePlan === paidPlanKey);
   }
 
   async function syncProductOrder(session: Stripe.Checkout.Session, stripeEvent: Stripe.Event) {
@@ -332,7 +344,7 @@ export async function POST(request: Request) {
   }
 
   async function syncFitmentCreditsPurchase(session: Stripe.Checkout.Session) {
-    const expectedPriceId = process.env.STRIPE_FITMENT_TWO_CHECKS_PRICE_ID;
+    const allowedPriceIds = listConfiguredOneTimePriceIds();
     const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 10 });
     const fulfillmentCheck = validateFitmentCreditFulfillment({
       session: {
@@ -343,8 +355,8 @@ export async function POST(request: Request) {
         client_reference_id: session.client_reference_id
       },
       lineItems: lineItems.data,
-      expectedPriceId,
-      entitlementKey: fitmentTwoChecksEntitlementKey,
+      allowedPriceIds,
+      allowedEntitlementKeys: [creditPacks.credits_50.entitlementKey, creditPacks.credits_150.entitlementKey],
       normalizeUserId: normalizeSupabaseUserId
     });
 
@@ -352,6 +364,15 @@ export async function POST(request: Request) {
       console.error("Fitment credits fulfillment skipped", {
         sessionId: session.id,
         reason: fulfillmentCheck.reason
+      });
+      return;
+    }
+
+    const pack = findCreditPackByPriceId(fulfillmentCheck.priceId);
+    if (!pack || pack.mode !== "payment") {
+      console.error("Fitment credits fulfillment skipped; unknown pack", {
+        sessionId: session.id,
+        priceId: fulfillmentCheck.priceId
       });
       return;
     }
@@ -364,21 +385,36 @@ export async function POST(request: Request) {
     }
 
     try {
+      await grantSpendableCredits({
+        supabase,
+        userId,
+        amount: pack.credits,
+        type: "purchase",
+        stripeCheckoutSessionId: session.id,
+        metadata: {
+          pack_key: pack.key,
+          stripe_price_id: pack.defaultPriceId,
+          session_mode: session.mode,
+          livemode: session.livemode
+        }
+      });
+
       await grantFitmentPurchaseEntitlement({
         supabase,
         userId,
         stripeCheckoutSessionId: session.id,
         stripePaymentIntentId: normalizePaymentIntentId(session.payment_intent),
         metadata: {
-          stripe_price_id: expectedPriceId,
-          premium_checks: fitmentTwoChecksCreditQuantity,
+          stripe_price_id: fulfillmentCheck.priceId,
+          credits: pack.credits,
+          pack_key: pack.key,
           session_mode: session.mode,
           livemode: session.livemode,
           premium_build_access_policy: currentVerifiedBuildAccessLabel
         }
       });
     } catch (error) {
-      if (isUniqueViolation(error)) {
+      if (isUniqueViolation(error) || isUniqueCreditGrantViolation(error)) {
         devLog("Fitment credits fulfillment already processed", { sessionId: session.id });
         return;
       }
@@ -386,14 +422,89 @@ export async function POST(request: Request) {
       throw new RetryableFitmentCreditWebhookError("Fitment credit fulfillment failed");
     }
   }
+
+  async function grantPrioritySubscriptionCredits(
+    invoice: Stripe.Invoice,
+    subscription: Stripe.Subscription
+  ) {
+    const priorityPriceId = getCreditPackPriceId(creditPacks.priority);
+    const invoicePrices = (invoice.lines?.data ?? [])
+      .map((line) => (typeof line.price === "object" ? line.price?.id : null))
+      .filter((value): value is string => Boolean(value));
+    const subscriptionPrices = subscription.items.data
+      .map((item) => item.price?.id)
+      .filter((value): value is string => Boolean(value));
+
+    if (![...invoicePrices, ...subscriptionPrices].includes(priorityPriceId)) return;
+
+    const customerId = normalizeStripeCustomerId(invoice.customer ?? subscription.customer);
+    const userId = await resolveSupabaseUserId({
+      subscription,
+      customerId
+    });
+
+    if (!userId) {
+      console.error("Priority credit grant skipped; missing user", { invoiceId: invoice.id });
+      return;
+    }
+
+    try {
+      await grantSpendableCredits({
+        supabase,
+        userId,
+        amount: creditPacks.priority.credits,
+        type: "subscription",
+        priority: true,
+        stripeInvoiceId: invoice.id,
+        metadata: {
+          pack_key: creditPacks.priority.key,
+          stripe_subscription_id: subscription.id,
+          billing_reason: invoice.billing_reason
+        }
+      });
+      await setCreditPriority(supabase, userId, true);
+    } catch (error) {
+      if (isUniqueCreditGrantViolation(error)) {
+        devLog("Priority monthly credits already granted", { invoiceId: invoice.id });
+        return;
+      }
+
+      throw new RetryableFitmentCreditWebhookError("Priority monthly credit grant failed");
+    }
+  }
 }
 
 function isFitmentCreditsCheckout(session: Stripe.Checkout.Session) {
-  return session.mode === "payment" && session.metadata?.entitlement_key === fitmentTwoChecksEntitlementKey;
+  const entitlementKey = session.metadata?.entitlement_key;
+  return session.mode === "payment" && Boolean(
+    findCreditPackByEntitlementKey(entitlementKey) ||
+    entitlementKey === "fitment_two_checks" ||
+    session.metadata?.pack_key
+  );
 }
 
 function isUniqueViolation(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
+}
+
+function readInvoiceSubscriptionId(invoice: Stripe.Invoice) {
+  const legacy = "subscription" in invoice ? invoice.subscription : null;
+  if (typeof legacy === "string" && legacy) return legacy;
+  if (legacy && typeof legacy === "object" && "id" in legacy && typeof legacy.id === "string") return legacy.id;
+
+  const parent = "parent" in invoice ? invoice.parent : null;
+  const fromParent = parent && typeof parent === "object" && "subscription_details" in parent
+    ? parent.subscription_details
+    : null;
+  const subscription = fromParent && typeof fromParent === "object" && "subscription" in fromParent
+    ? fromParent.subscription
+    : null;
+  if (typeof subscription === "string" && subscription) return subscription;
+  if (subscription && typeof subscription === "object" && "id" in subscription && typeof subscription.id === "string") {
+    return subscription.id;
+  }
+
+  return null;
 }
 
 function normalizePaymentIntentId(paymentIntent: string | Stripe.PaymentIntent | null): string | null {

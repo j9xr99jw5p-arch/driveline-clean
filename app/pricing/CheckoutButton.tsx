@@ -1,11 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import type { CreditPackKey } from "@/lib/creditPacks";
 
 const friendlyCheckoutError =
   "We’re having trouble opening checkout right now. We’re working to fix it as quickly as possible. Please try again in a moment.";
 
-export function CheckoutButton() {
+export function CheckoutButton({
+  pack,
+  label
+}: {
+  pack: CreditPackKey;
+  label: string;
+}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,7 +21,11 @@ export function CheckoutButton() {
     setError(null);
 
     try {
-      const response = await fetch("/api/checkout/fitment-credits", { method: "POST" });
+      const response = await fetch("/api/checkout/fitment-credits", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pack })
+      });
       const payload = await response.json().catch((readError) => {
         console.error("Checkout response could not be read", readError);
         return {};
@@ -43,7 +54,7 @@ export function CheckoutButton() {
   return (
     <div>
       <button className="button primary full" type="button" disabled={loading} onClick={checkout}>
-        {loading ? "Opening checkout..." : "Get 2 more checks — $14"}
+        {loading ? "Opening checkout..." : label}
       </button>
       {error ? <p className="fine" style={{ marginTop: 10 }}>{error}</p> : null}
     </div>

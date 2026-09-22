@@ -53,7 +53,7 @@ const schema = z.union([
 const freeCheckWindowMs = 24 * 60 * 60 * 1000;
 const freeCheckLimit = 8;
 const freeCheckBuckets = new Map<string, { count: number; resetAt: number }>();
-const outOfChecksMessage = "You’ve used your 3 free fitment checks. Get 2 more checks for $14.";
+const outOfChecksMessage = "You need more credits. $4.99 adds 50, $14.99 adds 150, or $25/month adds 250 with Priority.";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
